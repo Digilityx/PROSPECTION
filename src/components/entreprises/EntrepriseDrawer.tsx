@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { ExternalLink, Save, Loader2, X, Search } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Drawer, FieldGroup, SelectField } from '@/components/ui/drawer'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
 import { computeTier } from '@/lib/scoring/compute-tier'
@@ -224,15 +223,24 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">ICP</span>
-              <Badge variant={computed.icp === 'Oui' ? 'default' : computed.icp === 'Non spécifié' ? 'secondary' : 'outline'}>
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                computed.icp === 'Oui'
+                  ? 'bg-green-500/15 text-green-700 dark:text-green-300'
+                  : 'bg-muted text-muted-foreground'
+              }`}>
                 {computed.icp}
-              </Badge>
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Tier</span>
-              <Badge variant={computed.tier === 'Tier 1' ? 'default' : computed.tier === 'Tier 2' ? 'secondary' : 'outline'}>
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                computed.tier === 'Tier 1' ? 'bg-[#050d2b] text-white' :
+                computed.tier === 'Tier 2' ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300' :
+                computed.tier === 'Tier 3' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' :
+                'bg-muted text-muted-foreground'
+              }`}>
                 {computed.tier}
-              </Badge>
+              </span>
             </div>
             <p className="text-xs text-muted-foreground italic">Calculé automatiquement depuis Typology + Secteur</p>
           </div>
@@ -325,7 +333,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
                 type="checkbox"
                 checked={isParentEntity}
                 onChange={e => setIsParentEntity(e.target.checked)}
-                className="h-4 w-4 rounded border-input accent-primary"
+                className="h-4 w-4 rounded border-input accent-[#050d2b]"
               />
               <span className="text-sm">Cette entreprise est une entité mère</span>
             </label>

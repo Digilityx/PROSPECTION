@@ -545,7 +545,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
                 type="checkbox"
                 checked={contactDigi}
                 onChange={e => setContactDigi(e.target.checked)}
-                className="h-4 w-4 rounded border-input accent-primary"
+                className="h-4 w-4 rounded border-input accent-[#050d2b]"
               />
               <span className="text-sm">Ce contact est un contact Digilityx</span>
             </label>

@@ -3,31 +3,32 @@ import { Building2, Users, Target, Eye, Loader2 } from 'lucide-react'
 import { useDashboardStats } from '@/lib/hooks/use-supabase'
 import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
 import { supabase } from '@/lib/supabase'
-interface RecentContact {
+interface PriorityContact {
   id: string
   first_name: string | null
   last_name: string | null
   position: string | null
   company_name: string | null
-  nb_personnes_digi_relation: number
   scoring: number
-  created_at: string
+  niveau_de_relation: string | null
+  entreprise: { tier: string } | null
 }
 
-function StatCard({ label, value, icon: Icon, description, accent, href }: {
+function StatCard({ label, value, icon: Icon, description, href }: {
   label: string
   value: string | number
   icon: React.ComponentType<{ className?: string }>
   description: string
-  accent?: string
   href?: string
 }) {
-  const iconColor = accent ?? 'text-primary'
   const content = (
-    <div className={`rounded-lg border border-border bg-card p-6 shadow-sm${href ? ' hover:border-primary/40 transition-colors' : ''}`}>
+    <div
+      className={`rounded-xl border border-[#050d2b]/12 p-6 shadow-md${href ? ' hover:shadow-lg hover:border-[#050d2b]/25 transition-all duration-200' : ''}`}
+      style={{ background: 'linear-gradient(135deg, rgba(5,13,43,0.03) 0%, var(--color-card) 50%)' }}
+    >
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <div className={`rounded-md p-1.5 ${accent ? accent + '/10 ' + iconColor : 'bg-primary/10 text-primary'}`}>
+        <div className="rounded-md p-1.5 bg-[#050d2b]/8 text-[#050d2b] dark:bg-white/10 dark:text-white">
           <Icon className="h-4 w-4" />
         </div>
       </div>
@@ -75,12 +76,15 @@ export default function Dashboard() {
     }
   )
 
-  const { data: recentContacts } = useSupabaseQuery<RecentContact[]>(
+  const { data: priorityContacts } = useSupabaseQuery<PriorityContact[]>(
     () => supabase
       .from('contacts')
-      .select('id, first_name, last_name, position, company_name, nb_personnes_digi_relation, scoring, created_at')
-      .gt('nb_personnes_digi_relation', 0)
-      .order('nb_personnes_digi_relation', { ascending: false })
+      .select('id, first_name, last_name, position, company_name, scoring, niveau_de_relation, entreprise:entreprises!inner(tier)')
+      .is('statut_contact', null)
+      .eq('masque', false)
+      .eq('contact_digi', false)
+      .eq('entreprises.tier', 'Tier 1')
+      .order('scoring', { ascending: false })
       .limit(10)
   )
 
@@ -99,10 +103,17 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      style={{
+        backgroundImage: [
+          'radial-gradient(ellipse 700px 500px at 100% -5%, rgba(208,48,48,0.07) 0%, transparent 70%)',
+          'radial-gradient(ellipse 600px 400px at -5% 100%, rgba(69,209,219,0.05) 0%, transparent 70%)',
+        ].join(', '),
+      }}
+    >
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Vue d'ensemble de votre pipeline de leads.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -111,7 +122,6 @@ export default function Dashboard() {
           value={s.total_entreprises.toLocaleString('fr-FR')}
           icon={Building2}
           description="Total en base"
-          accent="text-violet-600 bg-violet-600"
           href="/entreprises"
         />
         <StatCard
@@ -119,7 +129,6 @@ export default function Dashboard() {
           value={s.total_contacts.toLocaleString('fr-FR')}
           icon={Users}
           description="Contacts importés"
-          accent="text-sky-500 bg-sky-500"
           href="/contacts"
         />
         <StatCard
@@ -127,7 +136,6 @@ export default function Dashboard() {
           value={s.contacts_a_contacter.toLocaleString('fr-FR')}
           icon={Target}
           description="Contacts prioritaires"
-          accent="text-emerald-500 bg-emerald-500"
           href="/contacts?statut=À contacter"
         />
         <StatCard
@@ -135,18 +143,17 @@ export default function Dashboard() {
           value={s.contacts_contactes.toLocaleString('fr-FR')}
           icon={Eye}
           description="Activement démarchés"
-          accent="text-amber-500 bg-amber-500"
           href="/contacts?statut=Contacté"
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border border-[#050d2b]/12 bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Répartition par Tier</h2>
           <div className="space-y-3">
-            <TierBar label="Tier 1" count={s.tier1} total={s.total_entreprises} color="bg-emerald-500" href="/entreprises?tier=Tier 1" />
-            <TierBar label="Tier 2" count={s.tier2} total={s.total_entreprises} color="bg-amber-500" href="/entreprises?tier=Tier 2" />
-            <TierBar label="Tier 3" count={s.tier3} total={s.total_entreprises} color="bg-slate-400" href="/entreprises?tier=Tier 3" />
+            <TierBar label="Tier 1" count={s.tier1} total={s.total_entreprises} color="bg-[#050d2b]" href="/entreprises?tier=Tier 1" />
+            <TierBar label="Tier 2" count={s.tier2} total={s.total_entreprises} color="bg-cyan-400" href="/entreprises?tier=Tier 2" />
+            <TierBar label="Tier 3" count={s.tier3} total={s.total_entreprises} color="bg-amber-400" href="/entreprises?tier=Tier 3" />
             <TierBar
               label="Hors-Tier"
               count={s.total_entreprises - s.tier1 - s.tier2 - s.tier3}
@@ -157,7 +164,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border border-[#050d2b]/12 bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Pipeline</h2>
           <div className="grid grid-cols-2 gap-4">
             <Link to="/entreprises?statut=Deal en cours" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
@@ -173,7 +180,7 @@ export default function Dashboard() {
       </div>
 
       {secteurStats && secteurStats.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border border-[#050d2b]/12 bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Répartition par Secteur</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {secteurStats.slice(0, 14).map(s => (
@@ -190,11 +197,16 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Contacts les plus connectés</h2>
-        {recentContacts && recentContacts.length > 0 ? (
+      <div className="rounded-xl border border-[#050d2b]/12 bg-card p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Tier 1 à contacter</h2>
+          <Link to="/contacts?tier=Tier 1" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Voir tous →
+          </Link>
+        </div>
+        {priorityContacts && priorityContacts.length > 0 ? (
           <div className="divide-y divide-border">
-            {recentContacts.map(c => (
+            {priorityContacts.map(c => (
               <Link
                 key={c.id}
                 to={`/contacts?contact=${c.id}`}
@@ -205,15 +217,15 @@ export default function Dashboard() {
                     {c.first_name} {c.last_name}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {c.position} {c.company_name ? `· ${c.company_name}` : ''}
+                    {c.position}{c.company_name ? ` · ${c.company_name}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0 ml-4">
-                  <span className="text-xs text-muted-foreground">
-                    {c.nb_personnes_digi_relation} relation{c.nb_personnes_digi_relation > 1 ? 's' : ''} Digi
-                  </span>
+                <div className="flex items-center gap-2 shrink-0 ml-4">
+                  {c.niveau_de_relation && c.niveau_de_relation !== 'Non renseigné' && (
+                    <span className="text-xs text-muted-foreground hidden sm:block">{c.niveau_de_relation}</span>
+                  )}
                   {c.scoring > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    <span className="inline-flex items-center rounded-full bg-[#050d2b] px-2 py-0.5 text-xs font-medium text-white">
                       {c.scoring}
                     </span>
                   )}
@@ -222,7 +234,7 @@ export default function Dashboard() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Aucune donnée disponible.</p>
+          <p className="text-sm text-muted-foreground">Aucun contact Tier 1 à contacter.</p>
         )}
       </div>
     </div>

@@ -4,11 +4,14 @@ interface Props {
 
 export function DigiIcon({ className }: Props) {
   return (
-    <img
-      src={import.meta.env.BASE_URL + 'Logo Digilityx (1).jpeg'}
-      alt=""
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 65.022 65.021"
+      fill="currentColor"
       className={className}
-      style={{ borderRadius: '2px' }}
-    />
+      aria-hidden="true"
+    >
+      <path fillRule="evenodd" clipRule="evenodd" d="M32.511 0 L0.003 0.002 L0 32.51 C0 50.466 14.556 65.021 32.511 65.021 C50.466 65.021 65.022 50.466 65.022 32.51 C65.022 14.555 50.466 0 32.511 0 M32.511 51.099 C22.245 51.099 13.923 42.776 13.923 32.51 L13.923 13.922 L32.511 13.922 C40.802 13.922 47.823 19.353 50.218 26.849 L37.194 26.849 L37.194 32.51 C37.194 35.637 39.729 38.171 42.855 38.171 L50.218 38.171 C47.823 45.668 40.802 51.099 32.511 51.099 M48.452 35.157 C46.99 35.157 45.805 33.972 45.805 32.51 L45.805 29.864 L48.452 29.864 C49.914 29.864 51.099 31.049 51.099 32.51 C51.099 33.972 49.914 35.157 48.452 35.157 Z" />
+    </svg>
   )
 }

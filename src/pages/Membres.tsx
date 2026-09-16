@@ -49,6 +49,7 @@ interface MembreContact {
   niveau_de_relation: string | null
   tier: string | null
   secteur_digi: string | null
+  masque?: boolean
 }
 
 const SECTEURS = [
@@ -332,7 +333,7 @@ export default function Membres() {
       supabase.rpc('get_membre_contacts', { p_membre_id: selectedMembre }),
       supabase.rpc('count_contacts_for_membre', { p_membre_id: selectedMembre }),
     ]).then(([{ data }, { data: count }]) => {
-      setMembreContacts((data ?? []) as MembreContact[])
+      setMembreContacts(((data ?? []) as MembreContact[]).filter(c => !c.masque))
       setTotalMembreContacts(typeof count === 'number' ? count : null)
       setLoadingMembreContacts(false)
     })
@@ -355,7 +356,7 @@ export default function Membres() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Membres Digi</h1>
         <p className="text-muted-foreground">
-          {membresCount} membres · {tab === 'owner' ? 'Contacts réseau + owner.' : tab === 'account_manager' ? 'Entreprises par AM.' : tab === 'tier' ? 'Relations par tier.' : 'Contacts par membre Digi.'}.
+          {membresCount} membres
         </p>
       </div>
 
@@ -411,7 +412,7 @@ export default function Membres() {
       {tab === 'membre_digi' ? (
         <div className="space-y-4">
           <Select value={selectedMembre} onValueChange={(v) => { if (v) setSelectedMembre(v) }}>
-            <SelectTrigger className="w-[280px]">
+            <SelectTrigger className="w-full max-w-[280px]">
               <SelectValue>{selectedMembre === 'all' ? 'Sélectionner un membre' : allMembres.find(m => m.id === selectedMembre)?.full_name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -454,7 +455,7 @@ export default function Membres() {
             }
             return (
             <>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select value={membreTierFilter} onValueChange={(v) => { if (v) setMembreTierFilter(v) }}>
                   <SelectTrigger className="w-[200px]">
                     <SelectValue>{membreTierFilter === 'all' ? 'Tous les tiers' : membreTierFilter}</SelectValue>
@@ -508,9 +509,9 @@ export default function Membres() {
                 </Button>
 
                 {aTraiter > 0 && (
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
                     <Badge variant="destructive">
-                      {aTraiter} relation{aTraiter > 1 ? 's' : ''} à qualifier
+                      {aTraiter} à qualifier
                     </Badge>
                     {(() => {
                       const membre = allMembres.find(m => m.id === selectedMembre)
@@ -559,15 +560,15 @@ export default function Membres() {
                   </div>
                 )}
               </div>
-              <div className="rounded-lg border border-border bg-card shadow-sm">
-                <Table>
+              <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
+                <Table className="table-fixed w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Entreprise</TableHead>
-                      <TableHead>Relation</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="text-center">Score</TableHead>
+                      <TableHead className="w-[30%]">Contact</TableHead>
+                      <TableHead className="w-[25%]">Entreprise</TableHead>
+                      <TableHead className="w-[20%]">Relation</TableHead>
+                      <TableHead className="w-[15%]">Statut</TableHead>
+                      <TableHead className="w-[10%] text-center">Score</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -575,11 +576,11 @@ export default function Membres() {
                       <TableRow key={c.id} className={!c.niveau_de_relation || c.niveau_de_relation === 'Non renseigné' ? 'bg-amber-50/50 dark:bg-amber-950/10' : ''}>
                         <TableCell>
                           <Link to={`/contacts?contact=${c.id}`} className="hover:underline">
-                            <p className="font-medium text-sm">{c.first_name} {c.last_name}</p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{c.position ?? '—'}</p>
+                            <p className="font-medium text-sm truncate">{c.first_name} {c.last_name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{c.position ?? '—'}</p>
                           </Link>
                         </TableCell>
-                        <TableCell className="text-sm">{c.company_name ?? '—'}</TableCell>
+                        <TableCell className="text-sm truncate max-w-0">{c.company_name ?? '—'}</TableCell>
                         <TableCell>
                           {c.niveau_de_relation && c.niveau_de_relation !== 'Non renseigné' ? (
                             <Badge

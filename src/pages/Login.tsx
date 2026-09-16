@@ -22,11 +22,11 @@ export default function Login() {
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Mesh gradient background */}
-      <div className="absolute inset-0 -z-10 bg-[#0a0118]">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[60%] rounded-full bg-[#7e14ff]/30 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[55%] rounded-full bg-[#47bfff]/20 blur-[120px]" />
-        <div className="absolute top-[30%] right-[20%] w-[35%] h-[40%] rounded-full bg-[#863bff]/20 blur-[100px]" />
-        <div className="absolute bottom-[20%] left-[15%] w-[30%] h-[35%] rounded-full bg-[#47bfff]/10 blur-[80px]" />
+      <div className="absolute inset-0 -z-10 bg-[#050d2b]">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[60%] rounded-full bg-[#f44242]/20 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[55%] rounded-full bg-[#45d1db]/15 blur-[120px]" />
+        <div className="absolute top-[30%] right-[20%] w-[35%] h-[40%] rounded-full bg-[#f44242]/10 blur-[100px]" />
+        <div className="absolute bottom-[20%] left-[15%] w-[30%] h-[35%] rounded-full bg-[#45d1db]/08 blur-[80px]" />
         {/* Noise overlay */}
         <div className="absolute inset-0 opacity-20" style={{
           backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.5\'/%3E%3C/svg%3E")',
@@ -41,46 +41,49 @@ export default function Login() {
 
       {/* Card */}
       <div className="relative w-full max-w-sm mx-4">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-8 shadow-2xl shadow-purple-500/5">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl px-10 py-10 shadow-2xl shadow-black/20">
           {/* Logo + Title */}
-          <div className="text-center space-y-4 mb-8">
+          <div className="text-center space-y-4 mb-10">
             <div className="flex justify-center">
-              <img
-                src={import.meta.env.BASE_URL + 'favicon.svg'}
-                alt="DigiLeads"
-                className="h-14 w-14 drop-shadow-[0_0_20px_rgba(134,59,255,0.5)]"
-              />
+              <svg width="52" height="52" viewBox="0 0 32 32" fill="none" aria-label="DigiLeads">
+                <circle cx="16" cy="16" r="14" fill="#f44242"/>
+                <path fill="white" transform="translate(6,6.4) scale(0.417)" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+              </svg>
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">
-                Digi<span className="text-[#863bff]">Leads</span>
+                Digi<span className="text-[#f66868]">Leads</span>
               </h1>
-              <p className="text-sm text-white/50 mt-1">Plateforme de detection de leads</p>
+              <p className="text-sm text-white/50 mt-1">Plateforme de détection de leads</p>
             </div>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-white/70">Email</label>
+            <div className="space-y-2.5">
+              <label htmlFor="email" className="text-sm font-medium text-white/70">Email</label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="prenom.nom@digilityx.com"
                 required
-                className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/30 outline-none focus-visible:border-[#863bff]/60 focus-visible:ring-2 focus-visible:ring-[#863bff]/20 transition-all"
+                autoComplete="email"
+                className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/30 outline-none focus-visible:border-[#f44242]/60 focus-visible:ring-2 focus-visible:ring-[#f44242]/20 transition-all"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-white/70">Mot de passe</label>
+            <div className="space-y-2.5">
+              <label htmlFor="password" className="text-sm font-medium text-white/70">Mot de passe</label>
               <input
+                id="password"
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/30 outline-none focus-visible:border-[#863bff]/60 focus-visible:ring-2 focus-visible:ring-[#863bff]/20 transition-all"
+                autoComplete="current-password"
+                className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/30 outline-none focus-visible:border-[#f44242]/60 focus-visible:ring-2 focus-visible:ring-[#f44242]/20 transition-all"
               />
             </div>
 
@@ -93,17 +96,13 @@ export default function Login() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-10 rounded-xl bg-[#863bff] hover:bg-[#7e14ff] text-white font-medium transition-all hover:shadow-lg hover:shadow-purple-500/25"
+              className="w-full h-10 rounded-xl bg-[#d03030] hover:bg-[#b52828] text-white font-medium transition-all hover:shadow-lg hover:shadow-[#d03030]/25"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Se connecter
             </Button>
           </form>
 
-          {/* Footer */}
-          <p className="text-center text-xs text-white/30 mt-6">
-            Digilityx &middot; Lead Detection Platform
-          </p>
         </div>
       </div>
     </div>

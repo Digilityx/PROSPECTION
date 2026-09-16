@@ -25,28 +25,36 @@ type EntrepriseWithParent = Entreprise & {
 
 const PAGE_SIZE = 50
 
-const TIER_COLORS: Record<string, string> = {
-  'Tier 1': 'default',
-  'Tier 2': 'secondary',
-  'Tier 3': 'outline',
-  'Hors-Tier': 'ghost',
+const TIER_STYLES: Record<string, string> = {
+  'Tier 1': 'bg-[#050d2b] text-white',
+  'Tier 2': 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+  'Tier 3': 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  'Hors-Tier': 'bg-muted text-muted-foreground',
 }
 
-const STATUT_COLORS: Record<string, string> = {
-  'À démarcher': 'secondary',
-  'Activement démarché': 'outline',
-  'Deal en cours': 'destructive',
-  'Devenu client Digileads': 'default',
+const STATUT_STYLES: Record<string, string> = {
+  'À démarcher': 'bg-muted text-muted-foreground',
+  'Activement démarché': 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+  'Deal en cours': 'bg-green-500/15 text-green-700 dark:text-green-300',
+  'Devenu client Digileads': 'bg-[#050d2b] text-white',
 }
 
 function TierBadge({ tier }: { tier: Tier | null }) {
   if (!tier) return <span className="text-xs text-muted-foreground">—</span>
-  return <Badge variant={(TIER_COLORS[tier] ?? 'outline') as 'default'}>{tier}</Badge>
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TIER_STYLES[tier] ?? 'bg-muted text-muted-foreground'}`}>
+      {tier}
+    </span>
+  )
 }
 
 function StatutBadge({ statut }: { statut: StatutEntreprise | null }) {
   if (!statut) return <span className="text-xs text-muted-foreground">—</span>
-  return <Badge variant={(STATUT_COLORS[statut] ?? 'outline') as 'default'}>{statut}</Badge>
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUT_STYLES[statut] ?? 'bg-muted text-muted-foreground'}`}>
+      {statut}
+    </span>
+  )
 }
 
 const SECTEURS = [
@@ -111,7 +119,7 @@ function SecteurMultiSelect({ values, onChange, activeClass }: {
               onClick={() => toggle(s)}
               className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left hover:bg-accent rounded-md"
             >
-              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${values.includes(s) ? 'bg-primary border-primary text-primary-foreground' : 'border-input'}`}>
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${values.includes(s) ? 'bg-[#050d2b] border-[#050d2b] text-white' : 'border-input'}`}>
                 {values.includes(s) && <Check className="h-3 w-3" />}
               </span>
               <span className={s === '__null__' ? 'italic text-muted-foreground' : ''}>{displayLabel(s)}</span>
@@ -157,7 +165,7 @@ export default function Entreprises() {
   }, [amFilter])
 
   const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || clientFilter !== 'all' || amFilter !== 'all' || search.trim() !== ''
-  const activeClass = 'border-primary bg-primary/10 text-primary'
+  const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
 
   function clearAllFilters() {
     setTierFilter('all')
@@ -298,7 +306,7 @@ export default function Entreprises() {
         <h1 className="text-2xl font-semibold tracking-tight">Entreprises</h1>
         <p className="text-muted-foreground">
           {countResult ? (
-            <>{totalCount.toLocaleString('fr-FR')} entreprise{totalCount > 1 ? 's' : ''}{hasFilters ? ' (filtrées)' : userIsAdmin ? ' en base' : ' liées à vous'}.</>
+            <>{totalCount.toLocaleString('fr-FR')} entreprise{totalCount > 1 ? 's' : ''}{hasFilters ? ' (filtrées)' : userIsAdmin ? ' en base' : ' liées à vous'}</>
           ) : (
             <span className="italic text-sm">Chargement en cours…</span>
           )}
@@ -518,9 +526,9 @@ export default function Entreprises() {
                       {e.account_manager?.full_name ?? '—'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={e.icp ? 'default' : 'outline'}>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${e.icp ? 'bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-muted text-muted-foreground'}`}>
                         {e.icp ? 'Oui' : 'Non'}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell>
                       <Link

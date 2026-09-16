@@ -66,7 +66,7 @@ function ScoreBar({ score }: { score: number }) {
 
   const color = score >= 70 ? 'bg-emerald-500' : score >= 40 ? 'bg-amber-500' : 'bg-slate-400'
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-center gap-2">
       <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
       </div>
@@ -86,8 +86,7 @@ function liveScore(c: ContactRow): number {
 
 function RelationCount({ count }: { count: number }) {
   if (count === 0) return <span className="text-xs text-muted-foreground">—</span>
-  const color = count >= 3 ? 'default' : count >= 2 ? 'secondary' : 'outline'
-  return <Badge variant={color as 'default'}>{count}</Badge>
+  return <Badge className="bg-[#050d2b] text-white border-transparent">{count}</Badge>
 }
 
 export default function Contacts() {
@@ -127,7 +126,7 @@ export default function Contacts() {
     setPage(0)
   }
 
-  const activeClass = 'border-primary bg-primary/10 text-primary'
+  const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
 
   // Auto-open contact drawer from query param
   useEffect(() => {
@@ -289,7 +288,7 @@ export default function Contacts() {
         <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
         <p className="text-muted-foreground">
           {countResult ? (
-            <>{totalCount.toLocaleString('fr-FR')} {restrictToMembreId ? 'contacts liés à vous' : 'contacts qualifiés avec scoring'}.</>
+            <>{totalCount.toLocaleString('fr-FR')} {restrictToMembreId ? 'contacts liés à vous' : 'contacts qualifiés avec scoring'}</>
           ) : (
             <span className="italic text-sm">Chargement en cours…</span>
           )}
@@ -566,7 +565,7 @@ export default function Contacts() {
                               onClick={e => e.stopPropagation()}
                               title={`${companyCount} contact${companyCount > 1 ? 's' : ''} dans cette entreprise — cliquer pour voir`}
                             >
-                              <Badge variant={companyCount >= 3 ? 'default' : 'outline'} className="text-[10px] px-1.5 py-0 gap-0.5">
+                              <Badge className="text-[10px] px-1.5 py-0 gap-0.5 bg-[#050d2b] text-white border-transparent">
                                 <Building2 className="h-2.5 w-2.5" />
                                 {companyCount}
                               </Badge>

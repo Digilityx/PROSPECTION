@@ -461,8 +461,8 @@ function EnrichmentCard() {
   return (
     <div className="rounded-lg border border-border bg-card p-6 shadow-sm space-y-4">
       <div className="flex items-center gap-3">
-        <div className="rounded-md bg-violet-500/10 p-2">
-          <Building2 className="h-5 w-5 text-violet-500" />
+        <div className="rounded-md bg-primary/10 p-2">
+          <Building2 className="h-5 w-5 text-primary" />
         </div>
         <div>
           <h3 className="text-lg font-semibold">Enrichissement Entreprises</h3>
@@ -472,10 +472,10 @@ function EnrichmentCard() {
 
       <div className="space-y-3">
         <input ref={fileRef} type="file" accept=".csv" onChange={e => { setFile(e.target.files?.[0] || null); setResult(null); setError(null) }} className="hidden" />
-        <button onClick={() => fileRef.current?.click()} className="w-full rounded-lg border-2 border-dashed border-border hover:border-violet-500/50 p-6 text-center transition-colors">
+        <button onClick={() => fileRef.current?.click()} className="w-full rounded-lg border-2 border-dashed border-border hover:border-primary/50 p-6 text-center transition-colors">
           {file ? (
             <div className="flex items-center justify-center gap-2">
-              <FileText className="h-5 w-5 text-violet-500" />
+              <FileText className="h-5 w-5 text-primary" />
               <span className="text-sm font-medium">{file.name}</span>
               <Badge variant="outline">{(file.size / 1024 / 1024).toFixed(1)} MB</Badge>
             </div>
