@@ -23,6 +23,32 @@ dist-ssr
 seed/
 scripts/generated-sql/
 
+# Données contacts et corrections (fichiers de travail, jamais en prod)
+*.xlsx
+*.csv
+processed-ids.txt
+toutes-les-corrections-secteur.csv
+
+# Outils de dev local (Claude Code, Impeccable, agents)
+.agents/
+.claude/
+.impeccable/
+
+# Design assets locaux (sources Figma/Digi, pas nécessaires au build)
+digi_design-system/
+
+# Scripts opérationnels temporaires (debug, one-shot, reclassification)
+scripts/analyze-sales-nav-urls.mjs
+scripts/apply-from-csv.mjs
+scripts/check-contacts-tmp.mjs
+scripts/check-membres-digi.mjs
+scripts/check-pronto-import-status.mjs
+scripts/debug-*.mjs
+scripts/export-all-corrections.mjs
+scripts/fix-one.mjs
+scripts/reclassify-*.mjs
+scripts/verify-phase1-corrections.mjs
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
