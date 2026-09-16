@@ -300,7 +300,7 @@ export default function Entreprises() {
           {countResult ? (
             <>{totalCount.toLocaleString('fr-FR')} entreprise{totalCount > 1 ? 's' : ''}{hasFilters ? ' (filtrées)' : userIsAdmin ? ' en base' : ' liées à vous'}.</>
           ) : (
-            <span className="inline-block h-4 w-48 animate-pulse rounded bg-muted" />
+            <span className="italic text-sm">Chargement en cours…</span>
           )}
         </p>
       </div>
@@ -540,7 +540,10 @@ export default function Entreprises() {
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Page {page + 1} / {totalPages || 1} · {totalCount.toLocaleString('fr-FR')} résultats
+              {countResult
+                ? <>Page {page + 1} / {totalPages || 1} · {totalCount.toLocaleString('fr-FR')} résultats</>
+                : <span className="italic">Calcul du nombre de résultats…</span>
+              }
             </p>
             <div className="flex gap-2">
               <Button
@@ -555,7 +558,7 @@ export default function Entreprises() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page >= totalPages - 1}
+                disabled={countResult ? page >= totalPages - 1 : (entreprises?.length ?? 0) < PAGE_SIZE}
                 onClick={() => setPage(p => p + 1)}
               >
                 Suivant

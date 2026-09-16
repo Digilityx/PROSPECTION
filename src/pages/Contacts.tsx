@@ -105,7 +105,7 @@ export default function Contacts() {
   const [personaFilter, setPersonaFilter] = useState<string>('all')
   const [statutFilter, setStatutFilter] = useState<string>(statutParam ?? 'all')
   const [entrepriseLinkFilter, setEntrepriseLinkFilter] = useState<string>('all')
-  const [tierFilter, setTierFilter] = useState<string>(!userIsAdmin ? 'Tier 1' : 'all')
+  const [tierFilter, setTierFilter] = useState<string>('Tier 1')
   const [relationFilter, setRelationFilter] = useState<string>('all')
   const [scoreAsc, setScoreAsc] = useState(false)
   const [unqualifiedFirst, setUnqualifiedFirst] = useState(!userIsAdmin)
@@ -223,10 +223,12 @@ export default function Contacts() {
         return { data: [{ count: Number(data ?? 0) }], error }
       }
 
-      const joinType = tierFilter !== 'all' ? 'entreprises!inner(tier)' : 'entreprises(tier)'
+      const needsTierJoin = tierFilter !== 'all'
+      const selectClause = needsTierJoin ? 'id, entreprises!inner(tier)' : 'id'
+      // head:true doesn't return Content-Range correctly with inner joins — use limit(0) instead
       let query = supabase
         .from('contacts')
-        .select(`id, ${joinType}`, { count: 'exact', head: true })
+        .select(selectClause, { count: 'exact', head: !needsTierJoin })
         .eq('masque', false)
         .eq('contact_digi', false)
 
@@ -237,7 +239,7 @@ export default function Contacts() {
       if (entrepriseLinkFilter === 'sans') query = query.is('company_name', null)
       else if (entrepriseLinkFilter === 'avec') query = query.not('company_name', 'is', null)
       else if (entrepriseLinkFilter === 'non-rattache') query = query.not('company_name', 'is', null).is('entreprise_id', null)
-      if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
+      if (needsTierJoin) query = query.eq('entreprises.tier', tierFilter).limit(0)
       if (debouncedSearch.trim()) {
         const s = debouncedSearch.trim()
         query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,company_name.ilike.%${s}%`)
@@ -289,7 +291,7 @@ export default function Contacts() {
           {countResult ? (
             <>{totalCount.toLocaleString('fr-FR')} {restrictToMembreId ? 'contacts liés à vous' : 'contacts qualifiés avec scoring'}.</>
           ) : (
-            <span className="inline-block h-4 w-48 animate-pulse rounded bg-muted" />
+            <span className="italic text-sm">Chargement en cours…</span>
           )}
         </p>
       </div>
@@ -653,7 +655,10 @@ export default function Contacts() {
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Page {page + 1} / {totalPages || 1} · {totalCount.toLocaleString('fr-FR')} résultats
+              {countResult
+                ? <>Page {page + 1} / {totalPages || 1} · {totalCount.toLocaleString('fr-FR')} résultats</>
+                : <span className="italic">Calcul du nombre de résultats…</span>
+              }
             </p>
             <div className="flex gap-2">
               <Button
@@ -668,7 +673,7 @@ export default function Contacts() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page >= totalPages - 1}
+                disabled={countResult ? page >= totalPages - 1 : (contacts?.length ?? 0) < PAGE_SIZE}
                 onClick={() => setPage(p => p + 1)}
               >
                 Suivant
