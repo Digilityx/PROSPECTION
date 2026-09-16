@@ -77,15 +77,19 @@ export default function Dashboard() {
   )
 
   const { data: priorityContacts } = useSupabaseQuery<PriorityContact[]>(
-    () => supabase
-      .from('contacts')
-      .select('id, first_name, last_name, position, company_name, scoring, niveau_de_relation, entreprise:entreprises!inner(tier)')
-      .is('statut_contact', null)
-      .eq('masque', false)
-      .eq('contact_digi', false)
-      .eq('entreprises.tier', 'Tier 1')
-      .order('scoring', { ascending: false })
-      .limit(10)
+    async () => {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, position, company_name, scoring, niveau_de_relation, entreprise:entreprises!inner(tier)')
+        .is('statut_contact', null)
+        .eq('masque', false)
+        .eq('contact_digi', false)
+        .eq('entreprises.tier', 'Tier 1')
+        .order('scoring', { ascending: false })
+        .limit(10)
+      if (error) return { data: null, error }
+      return { data: (data ?? []) as unknown as PriorityContact[], error: null }
+    }
   )
 
   if (loading) {
