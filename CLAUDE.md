@@ -148,7 +148,7 @@ Colonnes principales :
 | `last_scraped_at` | TIMESTAMPTZ | |
 | `persona` | TEXT | `Dirigeant` \| `Marketing` \| `Produit` \| `Design` \| `Commercial` \| `Acheteur` \| `Hors expertise Digi` |
 | `hierarchie` | TEXT | `COMEX` \| `Directeur` \| `Manager` \| `Opérationnel` \| `Stagiaire/Alternant` |
-| `contact_digi` | BOOLEAN | Contact interne Digilityx |
+| `contact_digi` | BOOLEAN | **Contact réservé** — affiché "Réservé" dans l'UI. Voir règles ci-dessous. |
 | `statut_contact` | TEXT | `À contacter` \| `Contacté` \| `Intéressé` \| `Pas intéressé` \| `Client` |
 | `niveau_de_relation` | TEXT | Valeur cache — maintenue par trigger depuis `contacts_membres_relations` |
 | `scoring` | INTEGER | Calculé automatiquement par trigger (max 100) |
@@ -157,6 +157,31 @@ Colonnes principales :
 | `masque` | BOOLEAN | `true` si tous les membres liés ont `partager_contacts = false` |
 | `query` | TEXT | |
 | `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+---
+
+### Contacts réservés (`contact_digi = true`)
+
+Le champ `contact_digi` marque un contact comme **réservé** — il reste visible dans l'app mais n'est pas un prospect actionnable (ex : collaborateur Digilityx, contact exclu de la prospection).
+
+**Règles de visibilité par rôle :**
+
+| Rôle | Voit le contact | Voit le badge "Réservé" | Peut ouvrir le drawer |
+|------|----------------|------------------------|-----------------------|
+| `membre` | ✅ | ❌ | ❌ |
+| `account_manager` | ✅ | ✅ (badge orange) | ❌ |
+| `admin` | ✅ | ✅ (badge orange) | ✅ (peut cocher/décocher) |
+
+**Comportement UI :**
+- La liste contacts affiche tous les contacts (réservés inclus) par défaut.
+- Les contacts réservés ont un fond légèrement ambré + badge "Réservé" orange visible aux AM et admins.
+- Le bouton **"Masquer les réservés"** (orange, admin uniquement) filtre ces contacts pour se concentrer sur les actionnables.
+- En vue membre (scoped), les contacts réservés du réseau du membre sont chargés séparément (requête complémentaire, hors RPC) et ajoutés en fin de liste.
+- La case à cocher "Ce contact est réservé" dans le drawer est réservée aux admins.
+
+**Règle d'import :** ne jamais écraser `contact_digi` sur un contact existant lors d'un import.
+
+**Nom de colonne :** `contact_digi` (interne) — le label UI est "Réservé". Pas besoin de renommer la colonne, les RPCs et triggers utilisent `contact_digi`.
 
 ---
 

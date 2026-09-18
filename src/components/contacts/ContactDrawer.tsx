@@ -539,7 +539,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
             />
           </FieldGroup>
 
-          <FieldGroup label="Contact Digi">
+          <FieldGroup label="Réservé">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -547,7 +547,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
                 onChange={e => setContactDigi(e.target.checked)}
                 className="h-4 w-4 rounded border-input accent-[#050d2b]"
               />
-              <span className="text-sm">Ce contact est un contact Digilityx</span>
+              <span className="text-sm">Ce contact est réservé</span>
             </label>
           </FieldGroup>
         </div>

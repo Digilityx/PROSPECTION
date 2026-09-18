@@ -92,6 +92,7 @@ function RelationCount({ count }: { count: number }) {
 export default function Contacts() {
   const { membre } = useAuth()
   const userIsAdmin = isAdmin(membre?.role)
+  const canSeeReservedBadge = membre?.role === 'admin' || membre?.role === 'account_manager'
   const [searchParams, setSearchParams] = useSearchParams()
   const entrepriseFilter = searchParams.get('entreprise')
   const entrepriseNameParam = searchParams.get('nom')
@@ -111,6 +112,7 @@ export default function Contacts() {
   const [selected, setSelected] = useState<ContactRow | null>(null)
   const [relationOverrides, setRelationOverrides] = useState<Record<string, string>>({})
   const [onlyMine, setOnlyMine] = useState(false)
+  const [hideReserved, setHideReserved] = useState(false)
   const debouncedSearch = useDebouncedValue(search, 300)
 
   const hasActiveFilters = hierarchieFilter !== 'all' || personaFilter !== 'all' || statutFilter !== 'all' || entrepriseLinkFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || search.trim() !== ''
@@ -170,8 +172,9 @@ export default function Contacts() {
         .from('contacts')
         .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, entreprise_id, owner_membre_id, ${joinType}`)
         .eq('masque', false)
-        .eq('contact_digi', false)
         .order('scoring', { ascending: scoreAsc })
+
+      if (hideReserved) query = query.eq('contact_digi', false)
 
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
@@ -188,7 +191,7 @@ export default function Contacts() {
 
       return query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     },
-    [page, hierarchieFilter, personaFilter, statutFilter, entrepriseLinkFilter, tierFilter, relationFilter, scoreAsc, unqualifiedFirst, debouncedSearch, entrepriseFilter, restrictToMembreId]
+    [page, hierarchieFilter, personaFilter, statutFilter, entrepriseLinkFilter, tierFilter, relationFilter, scoreAsc, unqualifiedFirst, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
   )
 
   const { data: unqualifiedCountResult } = useSupabaseQuery<number>(
@@ -229,7 +232,8 @@ export default function Contacts() {
         .from('contacts')
         .select(selectClause, { count: 'exact', head: !needsTierJoin })
         .eq('masque', false)
-        .eq('contact_digi', false)
+
+      if (hideReserved) query = query.eq('contact_digi', false)
 
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
@@ -247,7 +251,22 @@ export default function Contacts() {
       const res = await query
       return { data: [{ count: res.count ?? 0 }], error: res.error }
     },
-    [hierarchieFilter, personaFilter, statutFilter, entrepriseLinkFilter, tierFilter, relationFilter, debouncedSearch, entrepriseFilter, restrictToMembreId]
+    [hierarchieFilter, personaFilter, statutFilter, entrepriseLinkFilter, tierFilter, relationFilter, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
+  )
+
+  // Contacts réservés dans le réseau du membre (le RPC les exclut — on les charge séparément)
+  const { data: reservedForMembre } = useSupabaseQuery<ContactRow[]>(
+    async () => {
+      if (!restrictToMembreId || hideReserved) return { data: [], error: null }
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, entreprise_id, owner_membre_id, contacts_membres_relations!inner(membre_id)')
+        .eq('contact_digi', true)
+        .eq('masque', false)
+        .eq('contacts_membres_relations.membre_id', restrictToMembreId)
+      return { data: (data ?? []) as ContactRow[], error }
+    },
+    [restrictToMembreId, hideReserved]
   )
 
   const [entrepriseContactCounts, setEntrepriseContactCounts] = useState<Map<string, number>>(new Map())
@@ -281,6 +300,9 @@ export default function Contacts() {
 
   const totalCount = countResult?.[0]?.count ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  const allContacts = scoped
+    ? [...(contacts ?? []), ...(reservedForMembre ?? [])]
+    : (contacts ?? [])
 
   return (
     <div className="space-y-4">
@@ -288,7 +310,8 @@ export default function Contacts() {
         <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
         <p className="text-muted-foreground">
           {countResult ? (
-            <>{totalCount.toLocaleString('fr-FR')} {restrictToMembreId ? 'contacts liés à vous' : 'contacts qualifiés avec scoring'}</>
+            <>{totalCount.toLocaleString('fr-FR')} {restrictToMembreId ? 'contacts liés à vous' : 'contacts avec scoring'}</>
+
           ) : (
             <span className="italic text-sm">Chargement en cours…</span>
           )}
@@ -441,6 +464,21 @@ export default function Contacts() {
           </Button>
         )}
 
+        {userIsAdmin && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => { setHideReserved(v => !v); setPage(0) }}
+            className={hideReserved
+              ? 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:border-amber-600 font-semibold'
+              : 'border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950/30'}
+            title={hideReserved ? 'Afficher aussi les contacts réservés' : 'Masquer les contacts réservés'}
+          >
+            Masquer les réservés
+          </Button>
+        )}
+
         <Select value={entrepriseLinkFilter} onValueChange={(v) => { setEntrepriseLinkFilter(v as string); setPage(0) }}>
           <SelectTrigger className={entrepriseLinkFilter !== 'all' ? activeClass : ''}>
             <SelectValue>
@@ -530,15 +568,21 @@ export default function Contacts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {contacts.map(c => {
+                {allContacts.map(c => {
                   const companyCount = c.entreprise_id ? (entrepriseContactCounts.get(c.entreprise_id) ?? 0) : 0;
+                  const canOpen = userIsAdmin
                   return (
-                    <TableRow key={c.id} className={userIsAdmin ? 'cursor-pointer' : ''} onClick={() => userIsAdmin && setSelected(c)}>
+                    <TableRow key={c.id} className={canOpen ? 'cursor-pointer' : ''} onClick={() => canOpen && setSelected(c)}>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <p className="font-medium text-sm">
                             {c.first_name} {c.last_name}
                           </p>
+                          {c.contact_digi && canSeeReservedBadge && (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                              Réservé
+                            </span>
+                          )}
                           {(c.id_url_linkedin || c.linkedin_url) && (
                             <a
                               href={c.id_url_linkedin ? `https://www.linkedin.com/in/${c.id_url_linkedin}/` : c.linkedin_url!}
