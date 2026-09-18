@@ -264,7 +264,7 @@ export default function Contacts() {
         .eq('contact_digi', true)
         .eq('masque', false)
         .eq('contacts_membres_relations.membre_id', restrictToMembreId)
-      return { data: (data ?? []) as ContactRow[], error }
+      return { data: (data ?? []) as unknown as ContactRow[], error }
     },
     [restrictToMembreId, hideReserved]
   )
