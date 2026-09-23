@@ -104,12 +104,12 @@ export default function Contacts() {
 
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
-  const [hierarchieFilter, setHierarchieFilter] = useState<string>('all')
-  const [personaFilter, setPersonaFilter] = useState<string>('all')
   const [statutFilter, setStatutFilter] = useState<string>(statutParam ?? 'all')
-  const [entrepriseLinkFilter, setEntrepriseLinkFilter] = useState<string>('all')
   const [tierFilter, setTierFilter] = useState<string>('Tier 1')
   const [relationFilter, setRelationFilter] = useState<string>('all')
+  const [ownerFilter, setOwnerFilter] = useState<string>('all')
+  const [amFilter, setAmFilter] = useState<string>('all')
+  const [membresList, setMembresList] = useState<{ id: string; full_name: string }[]>([])
   const [scoreAsc, setScoreAsc] = useState(false)
   const [unqualifiedFirst, setUnqualifiedFirst] = useState(!userIsAdmin)
   const [selected, setSelected] = useState<ContactRow | null>(null)
@@ -119,18 +119,27 @@ export default function Contacts() {
   const [hideReserved, setHideReserved] = useState(false)
   const debouncedSearch = useDebouncedValue(search, 300)
 
-  const hasActiveFilters = hierarchieFilter !== 'all' || personaFilter !== 'all' || statutFilter !== 'all' || entrepriseLinkFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || search.trim() !== ''
+  const hasActiveFilters = statutFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || ownerFilter !== 'all' || amFilter !== 'all' || search.trim() !== ''
 
   function clearAllFilters() {
-    setHierarchieFilter('all')
-    setPersonaFilter('all')
     setStatutFilter('all')
-    setEntrepriseLinkFilter('all')
     setTierFilter('all')
     setRelationFilter('all')
+    setOwnerFilter('all')
+    setAmFilter('all')
     setSearch('')
     setPage(0)
   }
+
+  useEffect(() => {
+    if (!userIsAdmin) return
+    supabase
+      .from('membres_digilityx')
+      .select('id, full_name')
+      .eq('actif', true)
+      .order('full_name')
+      .then(({ data }) => setMembresList((data ?? []) as { id: string; full_name: string }[]))
+  }, [userIsAdmin])
 
   const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
 
@@ -157,9 +166,9 @@ export default function Contacts() {
           p_membre_id: restrictToMembreId,
           p_tier: tierFilter === 'all' ? null : tierFilter,
           p_statut: statutFilter === 'all' ? null : statutFilter,
-          p_hierarchie: hierarchieFilter === 'all' ? null : hierarchieFilter,
-          p_persona: personaFilter === 'all' ? null : personaFilter,
-          p_entreprise_link: entrepriseLinkFilter === 'all' ? null : entrepriseLinkFilter,
+          p_hierarchie: null,
+          p_persona: null,
+          p_entreprise_link: null,
           p_entreprise_id: entrepriseFilter ?? null,
           p_niveau_relation: relationFilter === 'all' ? null : relationFilter,
           p_search: debouncedSearch.trim() || null,
@@ -171,7 +180,8 @@ export default function Contacts() {
         return { data: (data ?? []) as ContactRow[], error }
       }
 
-      const joinType = tierFilter !== 'all' ? 'entreprises!inner(tier)' : 'entreprises(tier)'
+      const needsEntrepriseJoin = tierFilter !== 'all' || amFilter !== 'all'
+      const joinType = needsEntrepriseJoin ? 'entreprises!inner(tier, account_manager_id)' : 'entreprises(tier)'
       let query = supabase
         .from('contacts')
         .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, ${joinType}`)
@@ -183,11 +193,8 @@ export default function Contacts() {
 
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
-      if (hierarchieFilter !== 'all') query = query.eq('hierarchie', hierarchieFilter)
-      if (personaFilter !== 'all') query = query.eq('persona', personaFilter)
-      if (entrepriseLinkFilter === 'sans') query = query.is('company_name', null)
-      else if (entrepriseLinkFilter === 'avec') query = query.not('company_name', 'is', null)
-      else if (entrepriseLinkFilter === 'non-rattache') query = query.not('company_name', 'is', null).is('entreprise_id', null)
+      if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
+      if (amFilter !== 'all') query = query.eq('entreprises.account_manager_id', amFilter)
       if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
       if (debouncedSearch.trim()) {
         const s = debouncedSearch.trim()
@@ -196,7 +203,7 @@ export default function Contacts() {
 
       return query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     },
-    [page, hierarchieFilter, personaFilter, statutFilter, entrepriseLinkFilter, tierFilter, relationFilter, scoreAsc, unqualifiedFirst, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
+    [page, statutFilter, tierFilter, relationFilter, ownerFilter, amFilter, scoreAsc, unqualifiedFirst, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
   )
 
   const { data: unqualifiedCountResult } = useSupabaseQuery<number>(
@@ -220,9 +227,9 @@ export default function Contacts() {
           p_membre_id: restrictToMembreId,
           p_tier: tierFilter === 'all' ? null : tierFilter,
           p_statut: statutFilter === 'all' ? null : statutFilter,
-          p_hierarchie: hierarchieFilter === 'all' ? null : hierarchieFilter,
-          p_persona: personaFilter === 'all' ? null : personaFilter,
-          p_entreprise_link: entrepriseLinkFilter === 'all' ? null : entrepriseLinkFilter,
+          p_hierarchie: null,
+          p_persona: null,
+          p_entreprise_link: null,
           p_entreprise_id: entrepriseFilter ?? null,
           p_niveau_relation: relationFilter === 'all' ? null : relationFilter,
           p_search: debouncedSearch.trim() || null,
@@ -230,25 +237,22 @@ export default function Contacts() {
         return { data: [{ count: Number(data ?? 0) }], error }
       }
 
-      const needsTierJoin = tierFilter !== 'all'
-      const selectClause = needsTierJoin ? 'id, entreprises!inner(tier)' : 'id'
-      // head:true doesn't return Content-Range correctly with inner joins — use limit(0) instead
+      const needsEntrepriseJoin = tierFilter !== 'all' || amFilter !== 'all'
+      const selectClause = needsEntrepriseJoin ? 'id, entreprises!inner(tier, account_manager_id)' : 'id'
+      // head:true doesn't work correctly with inner joins — use limit(0) instead
       let query = supabase
         .from('contacts')
-        .select(selectClause, { count: 'exact', head: !needsTierJoin })
+        .select(selectClause, { count: 'exact', head: !needsEntrepriseJoin })
         .eq('masque', false)
         .eq('is_digi_employee', false)
 
       if (hideReserved) query = query.eq('contact_digi', false)
-
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
-      if (hierarchieFilter !== 'all') query = query.eq('hierarchie', hierarchieFilter)
-      if (personaFilter !== 'all') query = query.eq('persona', personaFilter)
-      if (entrepriseLinkFilter === 'sans') query = query.is('company_name', null)
-      else if (entrepriseLinkFilter === 'avec') query = query.not('company_name', 'is', null)
-      else if (entrepriseLinkFilter === 'non-rattache') query = query.not('company_name', 'is', null).is('entreprise_id', null)
-      if (needsTierJoin) query = query.eq('entreprises.tier', tierFilter).limit(0)
+      if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
+      if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
+      if (amFilter !== 'all') query = query.eq('entreprises.account_manager_id', amFilter)
+      if (needsEntrepriseJoin) query = query.limit(0)
       if (debouncedSearch.trim()) {
         const s = debouncedSearch.trim()
         query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,company_name.ilike.%${s}%`)
@@ -257,7 +261,7 @@ export default function Contacts() {
       const res = await query
       return { data: [{ count: res.count ?? 0 }], error: res.error }
     },
-    [hierarchieFilter, personaFilter, statutFilter, entrepriseLinkFilter, tierFilter, relationFilter, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
+    [statutFilter, tierFilter, ownerFilter, amFilter, relationFilter, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
   )
 
   // Contacts réservés dans le réseau du membre (le RPC les exclut — on les charge séparément)
@@ -352,36 +356,6 @@ export default function Contacts() {
             className="h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         </div>
-
-        <Select value={hierarchieFilter} onValueChange={(v) => { setHierarchieFilter(v as string); setPage(0) }}>
-          <SelectTrigger className={hierarchieFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{hierarchieFilter === 'all' ? 'Toute hiérarchie' : hierarchieFilter}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toute hiérarchie</SelectItem>
-            <SelectItem value="COMEX">COMEX</SelectItem>
-            <SelectItem value="Directeur">Directeur</SelectItem>
-            <SelectItem value="Manager">Manager</SelectItem>
-            <SelectItem value="Opérationnel">Opérationnel</SelectItem>
-            <SelectItem value="Stagiaire/Alternant">Stagiaire/Alternant</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={personaFilter} onValueChange={(v) => { setPersonaFilter(v as string); setPage(0) }}>
-          <SelectTrigger className={personaFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{personaFilter === 'all' ? 'Toute persona' : personaFilter}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toute persona</SelectItem>
-            <SelectItem value="Dirigeant">Dirigeant</SelectItem>
-            <SelectItem value="Marketing">Marketing</SelectItem>
-            <SelectItem value="Produit">Produit</SelectItem>
-            <SelectItem value="Design">Design</SelectItem>
-            <SelectItem value="Commercial">Commercial</SelectItem>
-            <SelectItem value="Acheteur">Acheteur</SelectItem>
-            <SelectItem value="Hors expertise Digi">Hors expertise</SelectItem>
-          </SelectContent>
-        </Select>
 
         <Select value={statutFilter} onValueChange={(v) => { setStatutFilter(v as string); setPage(0) }}>
           <SelectTrigger className={statutFilter !== 'all' ? activeClass : ''}>
@@ -486,23 +460,33 @@ export default function Contacts() {
           </Button>
         )}
 
-        <Select value={entrepriseLinkFilter} onValueChange={(v) => { setEntrepriseLinkFilter(v as string); setPage(0) }}>
-          <SelectTrigger className={entrepriseLinkFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>
-              {entrepriseLinkFilter === 'all' ? 'Toute entreprise'
-                : entrepriseLinkFilter === 'sans' ? 'Sans entreprise'
-                : entrepriseLinkFilter === 'non-rattache' ? 'Non rattachée'
-                : 'Avec entreprise'}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toute entreprise</SelectItem>
-            <SelectItem value="sans">Sans entreprise</SelectItem>
-            <SelectItem value="non-rattache">Non rattachée</SelectItem>
-            <SelectItem value="avec">Avec entreprise</SelectItem>
-          </SelectContent>
-        </Select>
+        {userIsAdmin && !scoped && membresList.length > 0 && (
+          <Select value={ownerFilter} onValueChange={(v) => { setOwnerFilter(v as string); setPage(0) }}>
+            <SelectTrigger className={ownerFilter !== 'all' ? activeClass : ''}>
+              <SelectValue>{ownerFilter === 'all' ? 'Owner' : (membresList.find(m => m.id === ownerFilter)?.full_name ?? 'Owner')}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les owners</SelectItem>
+              {membresList.map(m => (
+                <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
+        {userIsAdmin && !scoped && membresList.length > 0 && (
+          <Select value={amFilter} onValueChange={(v) => { setAmFilter(v as string); setPage(0) }}>
+            <SelectTrigger className={amFilter !== 'all' ? activeClass : ''}>
+              <SelectValue>{amFilter === 'all' ? 'Account Manager' : (membresList.find(m => m.id === amFilter)?.full_name ?? 'Account Manager')}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les AM</SelectItem>
+              {membresList.map(m => (
+                <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {hasActiveFilters && (
           <Button
