@@ -365,6 +365,7 @@ export default function Contacts() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tout statut</SelectItem>
+            <SelectItem value="Sélectionné">Sélectionné</SelectItem>
             <SelectItem value="À contacter">À contacter</SelectItem>
             <SelectItem value="Contacté">Contacté</SelectItem>
             <SelectItem value="Intéressé">Intéressé</SelectItem>

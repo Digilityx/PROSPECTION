@@ -24,6 +24,7 @@ export type Persona =
 export type Hierarchie = 'COMEX' | 'Directeur' | 'Manager' | 'Opérationnel' | 'Stagiaire/Alternant'
 
 export type StatutContact =
+  | 'Sélectionné'
   | 'À contacter'
   | 'Contacté'
   | 'Intéressé'

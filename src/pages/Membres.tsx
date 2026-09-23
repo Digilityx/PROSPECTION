@@ -33,7 +33,7 @@ const STATUTS_ENTREPRISE = [
 ]
 
 const STATUTS_CONTACT = [
-  'À contacter', 'Contacté', 'Intéressé', 'Pas intéressé', 'Client',
+  'Sélectionné', 'À contacter', 'Contacté', 'Intéressé', 'Pas intéressé', 'Client',
 ]
 
 const TIERS = ['Tier 1', 'Tier 2', 'Tier 3', 'Hors-Tier', 'Sans tier']

@@ -15,7 +15,7 @@ const PERSONAS: Persona[] = [
 ]
 const HIERARCHIES: Hierarchie[] = ['COMEX', 'Directeur', 'Manager', 'Opérationnel', 'Stagiaire/Alternant']
 const STATUTS: StatutContact[] = [
-  'À contacter', 'Contacté', 'Intéressé',
+  'Sélectionné', 'À contacter', 'Contacté', 'Intéressé',
   'Pas intéressé', 'Client',
 ]
 const NIVEAUX_RELATION: NiveauRelation[] = [
@@ -281,7 +281,8 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
 
     // Priority order (highest wins)
     const STATUT_PRIORITY: Record<string, { priority: number; entrepriseStatut: string }> = {
-      'Client':         { priority: 4, entrepriseStatut: 'Devenu client Digileads' },
+      'Client':         { priority: 5, entrepriseStatut: 'Devenu client Digileads' },
+      'Sélectionné':    { priority: 4, entrepriseStatut: 'Deal en cours' },
       'Intéressé':      { priority: 3, entrepriseStatut: 'Deal en cours' },
       'Contacté':       { priority: 2, entrepriseStatut: 'Activement démarché' },
       'À contacter':    { priority: 1, entrepriseStatut: 'À démarcher' },
