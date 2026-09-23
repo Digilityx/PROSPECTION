@@ -110,6 +110,7 @@ export default function Contacts() {
   const [ownerFilter, setOwnerFilter] = useState<string>('all')
   const [amFilter, setAmFilter] = useState<string>('all')
   const [membresList, setMembresList] = useState<{ id: string; full_name: string }[]>([])
+  const [amList, setAmList] = useState<{ id: string; full_name: string }[]>([])
   const [scoreAsc, setScoreAsc] = useState(false)
   const [unqualifiedFirst, setUnqualifiedFirst] = useState(!userIsAdmin)
   const [selected, setSelected] = useState<ContactRow | null>(null)
@@ -133,12 +134,13 @@ export default function Contacts() {
 
   useEffect(() => {
     if (!userIsAdmin) return
-    supabase
-      .from('membres_digilityx')
-      .select('id, full_name')
-      .eq('actif', true)
-      .order('full_name')
-      .then(({ data }) => setMembresList((data ?? []) as { id: string; full_name: string }[]))
+    Promise.all([
+      supabase.from('membres_digilityx').select('id, full_name').eq('actif', true).eq('partager_contacts', true).order('full_name'),
+      supabase.from('membres_digilityx').select('id, full_name').eq('actif', true).in('role', ['account_manager', 'admin']).order('full_name'),
+    ]).then(([allRes, amRes]) => {
+      setMembresList((allRes.data ?? []) as { id: string; full_name: string }[])
+      setAmList((amRes.data ?? []) as { id: string; full_name: string }[])
+    })
   }, [userIsAdmin])
 
   const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
@@ -474,14 +476,14 @@ export default function Contacts() {
           </Select>
         )}
 
-        {userIsAdmin && !scoped && membresList.length > 0 && (
+        {userIsAdmin && !scoped && amList.length > 0 && (
           <Select value={amFilter} onValueChange={(v) => { setAmFilter(v as string); setPage(0) }}>
             <SelectTrigger className={amFilter !== 'all' ? activeClass : ''}>
-              <SelectValue>{amFilter === 'all' ? 'Account Manager' : (membresList.find(m => m.id === amFilter)?.full_name ?? 'Account Manager')}</SelectValue>
+              <SelectValue>{amFilter === 'all' ? 'Account Manager' : (amList.find(m => m.id === amFilter)?.full_name ?? 'Account Manager')}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tous les AM</SelectItem>
-              {membresList.map(m => (
+              {amList.map(m => (
                 <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
               ))}
             </SelectContent>
