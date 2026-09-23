@@ -236,17 +236,14 @@ export default function Membres() {
   const { data: ownerStats = [], isLoading: loadingOwner } = useQuery<MembreStats[]>({
     queryKey: ['membres-owner-stats', allMembres.map(m => m.id)],
     queryFn: async () => {
-      const [reseauResults, { data: ownerRpc }] = await Promise.all([
-        (async () => {
-          const counts: Record<string, number> = {}
-          for (const m of allMembres) {
-            const { data } = await supabase.rpc('count_contacts_for_membre', { p_membre_id: m.id })
-            counts[m.id] = typeof data === 'number' ? data : 0
-          }
-          return counts
-        })(),
+      const [{ data: reseauRpc }, { data: ownerRpc }] = await Promise.all([
+        supabase.rpc('get_membre_contact_count'),
         supabase.rpc('get_owner_contact_stats'),
       ])
+      const reseauResults: Record<string, number> = {}
+      for (const row of (reseauRpc ?? []) as { membre_id: string; cnt: number }[]) {
+        reseauResults[row.membre_id] = Number(row.cnt)
+      }
 
       const ownerLookup = new Map<string, Record<string, number>>()
       for (const row of (ownerRpc ?? []) as { owner_membre_id: string; statut_contact: string | null; cnt: number }[]) {
