@@ -19,6 +19,26 @@ import { scoreContact } from '@/lib/scoring/score-contact'
 import { useAuth, isAdmin } from '@/lib/auth'
 import { NIVEAU_RELATION_DESCRIPTIONS, type Hierarchie, type Persona, type NiveauRelation } from '@/lib/types'
 
+const STATUT_CONTACT_CLASS: Record<string, string> = {
+  'Sélectionné':      'bg-red-800 text-white',
+  'À contacter':      'bg-blue-100 text-blue-800',
+  'Contacté':         'bg-amber-100 text-amber-800',
+  'Intéressé':        'bg-emerald-100 text-emerald-800',
+  'Pas intéressé':    'bg-gray-100 text-gray-500',
+  'Client à date':    'bg-violet-100 text-violet-800',
+  'Client Digileads': 'bg-[#050d2b] text-white',
+}
+
+const HISTORIQUE_RELATIONNEL_CLASS: Record<string, string> = {
+  'Jamais contacté':    'bg-gray-100 text-gray-600',
+  'Réservé':            'bg-amber-100 text-amber-800',
+  'Deal en cours':      'bg-amber-100 text-amber-800',
+  'Mission en cours':   'bg-amber-100 text-amber-800',
+  'A recontacter N+1':  'bg-orange-100 text-orange-800',
+  'En attente de retour': 'bg-blue-100 text-blue-800',
+  'Ancien client Digi': 'bg-violet-100 text-violet-800',
+}
+
 const RELATION_GLOSSARY = (Object.entries(NIVEAU_RELATION_DESCRIPTIONS) as [NiveauRelation, string][])
   .filter(([k]) => k !== 'Non renseigné')
   .map(([k, v]) => `• ${k} : ${v}`)
@@ -57,6 +77,7 @@ interface ContactRow {
   nb_personnes_digi_relation: number
   contact_digi: boolean
   is_digi_employee: boolean
+  historique_relationnel: string | null
   entreprise_id: string | null
   owner_membre_id: string | null
   entreprises: { tier: string | null } | { tier: string | null }[] | null
@@ -95,7 +116,7 @@ function RelationCount({ count }: { count: number }) {
 export default function Contacts() {
   const { membre } = useAuth()
   const userIsAdmin = isAdmin(membre?.role)
-  const canSeeReservedBadge = membre?.role === 'admin' || membre?.role === 'account_manager'
+
   const [searchParams, setSearchParams] = useSearchParams()
   const entrepriseFilter = searchParams.get('entreprise')
   const entrepriseNameParam = searchParams.get('nom')
@@ -117,10 +138,10 @@ export default function Contacts() {
   const [selectedEntreprise, setSelectedEntreprise] = useState<Entreprise | null>(null)
   const [relationOverrides, setRelationOverrides] = useState<Record<string, string>>({})
   const [onlyMine, setOnlyMine] = useState(false)
-  const [hideReserved, setHideReserved] = useState(false)
+  const [historiqueFilter, setHistoriqueFilter] = useState<string>('all')
   const debouncedSearch = useDebouncedValue(search, 300)
 
-  const hasActiveFilters = statutFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || ownerFilter !== 'all' || amFilter !== 'all' || search.trim() !== ''
+  const hasActiveFilters = statutFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || ownerFilter !== 'all' || amFilter !== 'all' || historiqueFilter !== 'all' || search.trim() !== ''
 
   function clearAllFilters() {
     setStatutFilter('all')
@@ -128,6 +149,7 @@ export default function Contacts() {
     setRelationFilter('all')
     setOwnerFilter('all')
     setAmFilter('all')
+    setHistoriqueFilter('all')
     setSearch('')
     setPage(0)
   }
@@ -150,7 +172,7 @@ export default function Contacts() {
     if (!contactParam) return
     supabase
       .from('contacts')
-      .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, entreprises(tier)')
+      .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, historique_relationnel, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, entreprises(tier)')
       .eq('id', contactParam)
       .single()
       .then(({ data }) => {
@@ -177,7 +199,7 @@ export default function Contacts() {
       entreprise: entrepriseFilter,
       scoreAsc,
       unqualifiedFirst,
-      hideReserved,
+      historique: historiqueFilter,
     },
   ] as const
 
@@ -208,12 +230,12 @@ export default function Contacts() {
       const joinType = needsEntrepriseJoin ? 'entreprises!inner(tier, account_manager_id)' : 'entreprises(tier)'
       let query = supabase
         .from('contacts')
-        .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, ${joinType}`)
+        .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, historique_relationnel, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, ${joinType}`)
         .eq('masque', false)
         .eq('is_digi_employee', false)
         .order('scoring', { ascending: scoreAsc })
 
-      if (hideReserved) query = query.eq('contact_digi', false)
+      if (historiqueFilter !== 'all') query = query.eq('historique_relationnel', historiqueFilter)
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
@@ -257,7 +279,7 @@ export default function Contacts() {
       am: amFilter,
       search: debouncedSearch,
       entreprise: entrepriseFilter,
-      hideReserved,
+      historique: historiqueFilter,
     },
   ] as const
 
@@ -289,7 +311,7 @@ export default function Contacts() {
         .eq('masque', false)
         .eq('is_digi_employee', false)
 
-      if (hideReserved) query = query.eq('contact_digi', false)
+      if (historiqueFilter !== 'all') query = query.eq('historique_relationnel', historiqueFilter)
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
@@ -309,12 +331,12 @@ export default function Contacts() {
 
   // Contacts réservés dans le réseau du membre (le RPC les exclut — on les charge séparément)
   const { data: reservedForMembre } = useQuery({
-    queryKey: ['contacts-reserved', restrictToMembreId, hideReserved],
+    queryKey: ['contacts-reserved', restrictToMembreId],
     queryFn: async () => {
-      if (!restrictToMembreId || hideReserved) return [] as ContactRow[]
+      if (!restrictToMembreId) return [] as ContactRow[]
       const { data, error } = await supabase
         .from('contacts')
-        .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, contacts_membres_relations!inner(membre_id)')
+        .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, historique_relationnel, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, contacts_membres_relations!inner(membre_id)')
         .eq('contact_digi', true)
         .eq('is_digi_employee', false)
         .eq('masque', false)
@@ -490,19 +512,18 @@ export default function Contacts() {
           </Button>
         )}
 
-        {userIsAdmin && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => { setHideReserved(v => !v); setPage(0) }}
-            className={hideReserved
-              ? 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:border-amber-600 font-semibold'
-              : 'border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950/30'}
-            title={hideReserved ? 'Afficher aussi les contacts réservés' : 'Masquer les contacts réservés'}
-          >
-            Masquer les réservés
-          </Button>
+        {!scoped && (
+          <Select value={historiqueFilter} onValueChange={(v) => { setHistoriqueFilter(v ?? 'all'); setPage(0) }}>
+            <SelectTrigger className={historiqueFilter !== 'all' ? activeClass : ''}>
+              <SelectValue>{historiqueFilter === 'all' ? 'Historique relationnel' : historiqueFilter}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              {['Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours', 'A recontacter N+1', 'En attente de retour', 'Ancien client Digi'].map(h => (
+                <SelectItem key={h} value={h}>{h}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
 
         {userIsAdmin && !scoped && membresList.length > 0 && (
@@ -554,6 +575,7 @@ export default function Contacts() {
                 <TableHead>Contact</TableHead>
                 <TableHead>Entreprise</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Historique</TableHead>
                 {scoped && <TableHead><RelationHeader /></TableHead>}
                 <TableHead className="text-center">Digi</TableHead>
                 <TableHead className="text-center">Score</TableHead>
@@ -562,7 +584,7 @@ export default function Contacts() {
             <TableBody>
               {Array.from({ length: 10 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: scoped ? 6 : 5 }).map((_, j) => (
+                  {Array.from({ length: scoped ? 7 : 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-muted rounded animate-pulse" />
                     </TableCell>
@@ -589,6 +611,7 @@ export default function Contacts() {
                   <TableHead>Contact</TableHead>
                   <TableHead>Entreprise</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>Historique</TableHead>
                   {scoped && <TableHead><RelationHeader /></TableHead>}
                   <TableHead className="text-center">Digi</TableHead>
                   <TableHead className="text-center">
@@ -614,11 +637,6 @@ export default function Contacts() {
                           <p className="font-medium text-sm">
                             {c.first_name} {c.last_name}
                           </p>
-                          {c.contact_digi && canSeeReservedBadge && (
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                              Réservé
-                            </span>
-                          )}
                           {(c.id_url_linkedin || c.linkedin_url) && (
                             <a
                               href={c.id_url_linkedin ? `https://www.linkedin.com/in/${c.id_url_linkedin}/` : c.linkedin_url!}
@@ -655,7 +673,14 @@ export default function Contacts() {
                       </TableCell>
                       <TableCell>
                         {c.statut_contact ? (
-                          <Badge variant="secondary">{c.statut_contact}</Badge>
+                          <Badge className={STATUT_CONTACT_CLASS[c.statut_contact] ?? 'bg-muted text-muted-foreground'}>{c.statut_contact}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {c.historique_relationnel ? (
+                          <Badge className={HISTORIQUE_RELATIONNEL_CLASS[c.historique_relationnel] ?? 'bg-muted text-muted-foreground'}>{c.historique_relationnel}</Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

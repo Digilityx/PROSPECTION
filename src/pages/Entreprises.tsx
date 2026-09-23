@@ -338,33 +338,6 @@ export default function Entreprises() {
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-1.5 rounded-lg border border-border px-1.5 py-1">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-1">Statuts</span>
-          <Select value={statutFilter} onValueChange={(v) => { setStatutFilter(v as string); setPage(0) }}>
-            <SelectTrigger className={`h-7 text-xs ${statutFilter !== 'all' ? activeClass : ''}`}>
-              <SelectValue>{statutFilter === 'all' ? 'Commercial' : statutFilter}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="min-w-[220px]">
-              <SelectItem value="all">Tous (commercial)</SelectItem>
-              <SelectItem value="À démarcher">À démarcher</SelectItem>
-              <SelectItem value="Activement démarché">Activement démarché</SelectItem>
-              <SelectItem value="Deal en cours">Deal en cours</SelectItem>
-              <SelectItem value="Devenu client Digileads">Devenu client Digileads</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={clientFilter} onValueChange={(v) => { setClientFilter(v as string); setPage(0) }}>
-            <SelectTrigger className={`h-7 text-xs ${clientFilter !== 'all' ? activeClass : ''}`}>
-              <SelectValue>{clientFilter === 'all' ? 'Digi' : clientFilter}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="min-w-[260px]">
-              <SelectItem value="all">Tous (Digi)</SelectItem>
-              <SelectItem value="Client Digi - pas de mission">Client Digi - pas de mission</SelectItem>
-              <SelectItem value="Client Digi - mission en cours">Client Digi - mission en cours</SelectItem>
-              <SelectItem value="Pas client Digi">Pas client Digi</SelectItem>
-              <SelectItem value="Client Digileads">Client Digileads</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
 
         <SecteurMultiSelect
           values={secteurFilter}

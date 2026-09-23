@@ -29,7 +29,17 @@ export type StatutContact =
   | 'Contacté'
   | 'Intéressé'
   | 'Pas intéressé'
-  | 'Client'
+  | 'Client à date'
+  | 'Client Digileads'
+
+export type HistoriqueRelationnel =
+  | 'Jamais contacté'
+  | 'Réservé'
+  | 'Deal en cours'
+  | 'Mission en cours'
+  | 'A recontacter N+1'
+  | 'En attente de retour'
+  | 'Ancien client Digi'
 
 export type NiveauRelation =
   | 'Ami'

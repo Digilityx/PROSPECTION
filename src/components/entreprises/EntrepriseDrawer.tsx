@@ -6,17 +6,10 @@ import { Button } from '@/components/ui/button'
 import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
 import { computeTier } from '@/lib/scoring/compute-tier'
 import type {
-  Entreprise, StatutEntreprise, StatutDigi, SecteurDigi, CompanyTypology,
+  Entreprise, SecteurDigi, CompanyTypology,
 } from '@/lib/types'
 
 const TYPOLOGIES: CompanyTypology[] = ['Grand Groupe', 'ETI', 'PME', 'TPE', 'Startup']
-const STATUTS: StatutEntreprise[] = [
-  'À démarcher', 'Activement démarché', 'Deal en cours', 'Devenu client Digileads',
-]
-const STATUTS_DIGI: StatutDigi[] = [
-  'Client Digi - pas de mission', 'Client Digi - mission en cours',
-  'Pas client Digi', 'Client Digileads',
-]
 const SECTEURS: SecteurDigi[] = [
   'Pharma/Santé', 'BAF', 'Éducation & Formation', 'Tourisme, Hôtellerie & Loisirs',
   'Technologie & IT', 'Prestations aux entreprises', 'Media & Communication', 'Recrutement',
@@ -246,20 +239,11 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
           </div>
 
           <FieldGroup label="Statut">
-            <SelectField
-              value={statut}
-              onChange={setStatut}
-              options={STATUTS.map(s => ({ value: s, label: s }))}
-            />
+            <span className="text-sm text-muted-foreground">{statut ?? '—'}</span>
           </FieldGroup>
 
           <FieldGroup label="Statut DIGI">
-            <SelectField
-              value={statutDigi}
-              onChange={setStatutDigi}
-              options={STATUTS_DIGI.map(s => ({ value: s, label: s }))}
-              placeholder="— Non renseigné —"
-            />
+            <span className="text-sm text-muted-foreground">{statutDigi ?? '—'}</span>
           </FieldGroup>
         </div>
 

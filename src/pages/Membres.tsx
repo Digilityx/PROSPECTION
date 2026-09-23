@@ -28,7 +28,6 @@ type MemberItem = {
   full_name: string
   slack_user_id: string | null
   last_slack_nudge_at: string | null
-  last_relance_contact_at: string | null
 }
 
 const STATUTS_ENTREPRISE = [
@@ -36,8 +35,18 @@ const STATUTS_ENTREPRISE = [
 ]
 
 const STATUTS_CONTACT = [
-  'Sélectionné', 'À contacter', 'Contacté', 'Intéressé', 'Pas intéressé', 'Client',
+  'Sélectionné', 'À contacter', 'Contacté', 'Intéressé', 'Pas intéressé', 'Client à date', 'Client Digileads',
 ]
+
+const STATUT_CONTACT_CLASS: Record<string, string> = {
+  'Sélectionné':      'bg-red-800 text-white',
+  'À contacter':      'bg-blue-100 text-blue-800',
+  'Contacté':         'bg-amber-100 text-amber-800',
+  'Intéressé':        'bg-emerald-100 text-emerald-800',
+  'Pas intéressé':    'bg-gray-100 text-gray-500',
+  'Client à date':    'bg-violet-100 text-violet-800',
+  'Client Digileads': 'bg-[#050d2b] text-white',
+}
 
 const TIERS = ['Tier 1', 'Tier 2', 'Tier 3', 'Hors-Tier', 'Sans tier']
 
@@ -158,6 +167,8 @@ interface OwnerContact {
   account_manager_name: string | null
   account_manager_slack_user_id: string | null
   statut_contact: string | null
+  statut_contact_changed_at: string | null
+  last_message_sent_at: string | null
 }
 
 function buildContactSlackMessage(
@@ -198,7 +209,8 @@ export default function Membres() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('owner')
   const [tierOnlyUnqualified, setTierOnlyUnqualified] = useState(false)
-  const [ownerOnlyAContacter, setOwnerOnlyAContacter] = useState(true)
+  const [ownerStatutFilter, setOwnerStatutFilter] = useState<string>('all')
+  const [ownerMemberFilter, setOwnerMemberFilter] = useState<string>('all')
   const [tierSlackState, setTierSlackState] = useState<Record<string, 'sending' | 'sent'>>({})
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
@@ -206,7 +218,7 @@ export default function Membres() {
   const [ownerContactsCache, setOwnerContactsCache] = useState<Record<string, OwnerContact[]>>({})
   const [loadingOwnerContacts, setLoadingOwnerContacts] = useState(false)
   const [contactSlackPreview, setContactSlackPreview] = useState<{ contact: OwnerContact; ownerId: string; message: string } | null>(null)
-  const [contactRelanceDates, setContactRelanceDates] = useState<Record<string, string>>({})
+  const [contactRelanceDates] = useState<Record<string, string>>({})
   const [markingRelance, setMarkingRelance] = useState(false)
 
   // Vue Membre Digi
@@ -222,7 +234,7 @@ export default function Membres() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('membres_digilityx')
-        .select('id, full_name, slack_user_id, last_slack_nudge_at, last_relance_contact_at')
+        .select('id, full_name, slack_user_id, last_slack_nudge_at')
         .eq('actif', true)
         .eq('partager_contacts', true)
         .order('full_name')
@@ -232,18 +244,11 @@ export default function Membres() {
   })
   const membresCount = allMembres.length
 
-  // Owner stats — all 3 queries enabled as soon as membres load; data is prefetched in background
+  // Owner stats
   const { data: ownerStats = [], isLoading: loadingOwner } = useQuery<MembreStats[]>({
-    queryKey: ['membres-owner-stats', allMembres.map(m => m.id)],
+    queryKey: ['membres-owner-stats', membresCount],
     queryFn: async () => {
-      const [{ data: reseauRpc }, { data: ownerRpc }] = await Promise.all([
-        supabase.rpc('get_membre_contact_count'),
-        supabase.rpc('get_owner_contact_stats'),
-      ])
-      const reseauResults: Record<string, number> = {}
-      for (const row of (reseauRpc ?? []) as { membre_id: string; cnt: number }[]) {
-        reseauResults[row.membre_id] = Number(row.cnt)
-      }
+      const { data: ownerRpc } = await supabase.rpc('get_owner_contact_stats')
 
       const ownerLookup = new Map<string, Record<string, number>>()
       for (const row of (ownerRpc ?? []) as { owner_membre_id: string; statut_contact: string | null; cnt: number }[]) {
@@ -262,10 +267,10 @@ export default function Membres() {
         for (const [k, v] of Object.entries(counts)) {
           if (!STATUTS_CONTACT.includes(k)) total += v
         }
-        return { ...m, total, totalReseau: reseauResults[m.id] ?? 0, byStatut, unqualifiedTier1: 0 }
+        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0 }
       })
 
-      return results.sort((a, b) => b.totalReseau - a.totalReseau)
+      return results.sort((a, b) => b.total - a.total)
     },
     enabled: allMembres.length > 0,
   })
@@ -639,17 +644,26 @@ export default function Membres() {
         <>
           {tab === 'owner' && (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setOwnerOnlyAContacter(v => !v)}
-                className={`inline-flex items-center gap-1.5 h-8 rounded-lg border px-3 text-sm transition-colors ${
-                  ownerOnlyAContacter
-                    ? 'border-destructive bg-destructive/10 text-destructive'
-                    : 'border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
+              <select
+                value={ownerStatutFilter}
+                onChange={e => setOwnerStatutFilter(e.target.value)}
+                className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground outline-none focus-visible:border-ring"
               >
-                À contacter uniquement
-              </button>
+                <option value="all">Tous les statuts</option>
+                {STATUTS_CONTACT.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <select
+                value={ownerMemberFilter}
+                onChange={e => setOwnerMemberFilter(e.target.value)}
+                className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground outline-none focus-visible:border-ring"
+              >
+                <option value="all">Tous les owners</option>
+                {allMembres.map(m => (
+                  <option key={m.id} value={m.id}>{m.full_name}</option>
+                ))}
+              </select>
             </div>
           )}
           {tab === 'tier' && (() => {
@@ -727,8 +741,7 @@ export default function Membres() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Membre</TableHead>
-                    {tab === 'owner' && <TableHead className="text-center w-[90px] whitespace-nowrap">Total contacts</TableHead>}
-                    <TableHead className="text-center w-[90px] whitespace-nowrap">{tab === 'owner' ? 'Dont owner' : `Total ${label}`}</TableHead>
+                    <TableHead className="text-center w-[90px] whitespace-nowrap">{tab === 'owner' ? 'Contacts' : `Total ${label}`}</TableHead>
                     {statuts.map(s => (
                       <TableHead key={s} className="text-center text-xs">{s}</TableHead>
                     ))}
@@ -736,12 +749,12 @@ export default function Membres() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stats.filter(m => m.total > 0 && (!tierOnlyUnqualified || m.unqualifiedTier1 > 0) && (tab !== 'owner' || !ownerOnlyAContacter || (m.byStatut['À contacter'] ?? 0) > 0)).map(m => (
+                  {stats.filter(m => m.total > 0 && (!tierOnlyUnqualified || m.unqualifiedTier1 > 0) && (tab !== 'owner' || (ownerMemberFilter === 'all' || m.id === ownerMemberFilter)) && (tab !== 'owner' || ownerStatutFilter === 'all' || (m.byStatut[ownerStatutFilter] ?? 0) > 0)).map(m => (
                     <React.Fragment key={m.id}>
                     <TableRow>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          {tab === 'owner' && (m.byStatut['À contacter'] ?? 0) > 0 ? (
+                          {tab === 'owner' && (ownerStatutFilter === 'all' ? Object.values(m.byStatut).some(v => v > 0) : (m.byStatut[ownerStatutFilter] ?? 0) > 0) ? (
                             <button
                               type="button"
                               onClick={async () => {
@@ -768,11 +781,6 @@ export default function Membres() {
                           )}
                         </div>
                       </TableCell>
-                      {tab === 'owner' && (
-                        <TableCell className="text-center w-[80px]">
-                          <span className="font-bold">{m.totalReseau}</span>
-                        </TableCell>
-                      )}
                       <TableCell className="text-center w-[80px]">
                         <span className="font-bold">{m.total}</span>
                       </TableCell>
@@ -861,16 +869,16 @@ export default function Membres() {
                             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground inline" />
                           </TableCell>
                         </TableRow>
-                      ) : (ownerContactsCache[m.id] ?? []).filter(c => ownerOnlyAContacter ? c.statut_contact === 'À contacter' : c.statut_contact !== null).length === 0 ? (
+                      ) : (ownerContactsCache[m.id] ?? []).filter(c => ownerStatutFilter !== 'all' ? c.statut_contact === ownerStatutFilter : c.statut_contact !== null).length === 0 ? (
                         <TableRow className="bg-muted/30">
                           <TableCell colSpan={statuts.length + 3} className="text-center text-xs text-muted-foreground py-4">Aucun contact trouvé.</TableCell>
                         </TableRow>
                       ) : (
                         (ownerContactsCache[m.id] ?? [])
-                          .filter(c => ownerOnlyAContacter ? c.statut_contact === 'À contacter' : c.statut_contact !== null)
+                          .filter(c => ownerStatutFilter !== 'all' ? c.statut_contact === ownerStatutFilter : c.statut_contact !== null)
                           .map(c => {
                             const owner = allMembres.find(a => a.id === m.id)
-                            const relanceDate = contactRelanceDates[c.id] ?? null
+                            const relanceDate = c.last_message_sent_at ?? contactRelanceDates[c.id] ?? null
                             return (
                               <TableRow key={c.id} className="bg-muted/20 hover:bg-muted/30">
                                 <TableCell>
@@ -895,24 +903,25 @@ export default function Membres() {
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell />{/* Total contacts */}
                                 <TableCell />{/* Dont owner */}
                                 {statuts.map(s => (
                                   <TableCell key={s} className="text-center">
                                     {c.statut_contact === s ? (
                                       <div className="flex flex-col items-center gap-1">
                                         <Badge
-                                          variant={s === 'À contacter' ? 'destructive' : 'secondary'}
-                                          className="text-xs"
+                                          className={`text-xs ${STATUT_CONTACT_CLASS[s] ?? 'bg-muted text-muted-foreground'}`}
                                         >
                                           {s}
                                         </Badge>
-                                        {s === 'À contacter' && (() => {
+                                        {s !== 'Sélectionné' && c.statut_contact_changed_at && (
+                                          <span className="text-xs text-muted-foreground">{relativeTime(c.statut_contact_changed_at)}</span>
+                                        )}
+                                        {s === 'Sélectionné' && (() => {
                                             if (relanceDate) {
                                               return (
                                                 <div className="flex flex-col items-center gap-0.5">
                                                   <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                                                    <Check className="h-3 w-3" /> Relancé
+                                                    <Check className="h-3 w-3" /> Message envoyé
                                                   </span>
                                                   <span className="text-xs text-muted-foreground">{relativeTime(relanceDate)}</span>
                                                 </div>
@@ -924,7 +933,7 @@ export default function Membres() {
                                                 onClick={() => setContactSlackPreview({ contact: c, ownerId: m.id, message: buildContactSlackMessage(owner?.full_name ?? '', c) })}
                                                 className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-xs hover:bg-accent transition-colors"
                                               >
-                                                Relancer
+                                                Message à envoyer
                                               </button>
                                             )
                                           })()}
@@ -1022,9 +1031,13 @@ export default function Membres() {
                       setMarkingRelance(true)
                       try {
                         const nudgeAt = new Date().toISOString()
-                        await supabase.from('membres_digilityx').update({ last_relance_contact_at: nudgeAt }).eq('id', contactSlackPreview.ownerId)
-                        queryClient.setQueryData<MemberItem[]>(['membres-list'], old => old?.map(a => a.id === contactSlackPreview.ownerId ? { ...a, last_relance_contact_at: nudgeAt } : a) ?? [])
-                        setContactRelanceDates(prev => ({ ...prev, [contactSlackPreview.contact.id]: nudgeAt }))
+                        await supabase.from('contacts').update({ last_message_sent_at: nudgeAt }).eq('id', contactSlackPreview.contact.id)
+                        setOwnerContactsCache(prev => ({
+                          ...prev,
+                          [contactSlackPreview.ownerId]: (prev[contactSlackPreview.ownerId] ?? []).map(c =>
+                            c.id === contactSlackPreview.contact.id ? { ...c, last_message_sent_at: nudgeAt } : c
+                          ),
+                        }))
                         setContactSlackPreview(null)
                       } finally {
                         setMarkingRelance(false)
@@ -1035,7 +1048,7 @@ export default function Membres() {
                       ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       : <Check className="h-4 w-4 mr-2" />
                     }
-                    Marquer comme relancé
+                    Marquer comme envoyé
                   </Button>
                 </div>
               </div>

@@ -7,7 +7,7 @@ import { scoreContact } from '@/lib/scoring/score-contact'
 import { DigiIcon } from '@/components/icons/DigiIcon'
 import {
   NIVEAU_RELATION_DESCRIPTIONS,
-  type Persona, type Hierarchie, type StatutContact, type NiveauRelation,
+  type Persona, type Hierarchie, type StatutContact, type NiveauRelation, type HistoriqueRelationnel,
 } from '@/lib/types'
 
 const PERSONAS: Persona[] = [
@@ -16,11 +16,15 @@ const PERSONAS: Persona[] = [
 const HIERARCHIES: Hierarchie[] = ['COMEX', 'Directeur', 'Manager', 'Opérationnel', 'Stagiaire/Alternant']
 const STATUTS: StatutContact[] = [
   'Sélectionné', 'À contacter', 'Contacté', 'Intéressé',
-  'Pas intéressé', 'Client',
+  'Pas intéressé', 'Client à date', 'Client Digileads',
 ]
 const NIVEAUX_RELATION: NiveauRelation[] = [
   'Ami', 'Cercle familial', 'Ancien collègue', 'Alumni',
   'Partenaire business', 'Connaissance', 'Inconnu', 'Non renseigné',
+]
+const HISTORIQUES_RELATIONNELS: HistoriqueRelationnel[] = [
+  'Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours',
+  'A recontacter N+1', 'En attente de retour', 'Ancien client Digi',
 ]
 
 interface ContactRow {
@@ -41,6 +45,7 @@ interface ContactRow {
   nb_personnes_digi_relation: number
   contact_digi: boolean
   is_digi_employee: boolean
+  historique_relationnel: string | null
   entreprise_id: string | null
   owner_membre_id?: string | null
 }
@@ -86,6 +91,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
   const [persona, setPersona] = useState<string | null>(null)
   const [hierarchie, setHierarchie] = useState<string | null>(null)
   const [statut, setStatut] = useState<string | null>(null)
+  const [historiqueRelationnel, setHistoriqueRelationnel] = useState<string | null>(null)
   const [contactDigi, setContactDigi] = useState(false)
   const [isDiGiEmployee, setIsDiGiEmployee] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -120,7 +126,8 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
       setPersona(contact.persona)
       setHierarchie(contact.hierarchie)
       setStatut(contact.statut_contact)
-      setContactDigi(contact.contact_digi)
+      setHistoriqueRelationnel(contact.historique_relationnel)
+      setContactDigi(contact.historique_relationnel === 'Réservé')
       setIsDiGiEmployee(contact.is_digi_employee)
       setEntrepriseId(contact.entreprise_id)
       setRelationChanges({})
@@ -225,7 +232,8 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
     persona !== contact.persona ||
     hierarchie !== contact.hierarchie ||
     statut !== contact.statut_contact ||
-    contactDigi !== contact.contact_digi ||
+    historiqueRelationnel !== contact.historique_relationnel ||
+    (historiqueRelationnel === 'Réservé') !== contact.contact_digi ||
     ownerMembreId !== (contact.owner_membre_id ?? null) ||
     entrepriseId !== contact.entreprise_id
   const hasChanges = hasFieldChanges || hasRelationChanges
@@ -250,6 +258,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
         persona: persona || null,
         hierarchie: hierarchie || null,
         statut_contact: statut || null,
+        historique_relationnel: historiqueRelationnel || null,
         contact_digi: contactDigi,
         is_digi_employee: isDiGiEmployee,
         owner_membre_id: ownerMembreId || null,
@@ -281,7 +290,8 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
 
     // Priority order (highest wins)
     const STATUT_PRIORITY: Record<string, { priority: number; entrepriseStatut: string }> = {
-      'Client':         { priority: 5, entrepriseStatut: 'Devenu client Digileads' },
+      'Client à date':    { priority: 5, entrepriseStatut: 'Devenu client Digileads' },
+      'Client Digileads': { priority: 6, entrepriseStatut: 'Devenu client Digileads' },
       'Sélectionné':    { priority: 4, entrepriseStatut: 'Deal en cours' },
       'Intéressé':      { priority: 3, entrepriseStatut: 'Deal en cours' },
       'Contacté':       { priority: 2, entrepriseStatut: 'Activement démarché' },
@@ -555,17 +565,14 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
             />
           </FieldGroup>
 
-          <FieldGroup label="Réservé">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={contactDigi}
-                onChange={e => setContactDigi(e.target.checked)}
-                className="h-4 w-4 rounded border-input accent-[#050d2b]"
-              />
-              <span className="text-sm">Ce contact est réservé</span>
-            </label>
+          <FieldGroup label="Historique relationnel">
+            <SelectField
+              value={historiqueRelationnel}
+              onChange={val => { setHistoriqueRelationnel(val); setContactDigi(val === 'Réservé') }}
+              options={HISTORIQUES_RELATIONNELS.map(h => ({ value: h, label: h }))}
+            />
           </FieldGroup>
+
 
         </div>
         )}

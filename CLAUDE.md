@@ -1,4 +1,4 @@
-# CLAUDE.md — DigiLeads (état au 03/09/2026)
+# CLAUDE.md — DigiLeads (état au 23/09/2026)
 
 ## Vue d'ensemble
 
@@ -148,8 +148,10 @@ Colonnes principales :
 | `last_scraped_at` | TIMESTAMPTZ | |
 | `persona` | TEXT | `Dirigeant` \| `Marketing` \| `Produit` \| `Design` \| `Commercial` \| `Acheteur` \| `Hors expertise Digi` |
 | `hierarchie` | TEXT | `COMEX` \| `Directeur` \| `Manager` \| `Opérationnel` \| `Stagiaire/Alternant` |
-| `contact_digi` | BOOLEAN | **Contact réservé** — affiché "Réservé" dans l'UI. Voir règles ci-dessous. |
-| `statut_contact` | TEXT | `À contacter` \| `Contacté` \| `Intéressé` \| `Pas intéressé` \| `Client` |
+| `contact_digi` | BOOLEAN | **Contact réservé** — piloté automatiquement par `historique_relationnel` : `true` si `historique_relationnel = 'Réservé'`, `false` sinon. Plus de case à cocher manuelle. |
+| `statut_contact` | TEXT | `Sélectionné` \| `À contacter` \| `Contacté` \| `Intéressé` \| `Pas intéressé` \| `Client à date` \| `Client Digileads` — chaque changement est loggué automatiquement dans `qualification_logs` |
+| `historique_relationnel` | TEXT | `Jamais contacté` \| `Réservé` \| `Deal en cours` \| `Mission en cours` \| `A recontacter N+1` \| `En attente de retour` \| `Ancien client Digi` — qualifié manuellement dans le drawer. Sélectionner "Réservé" met automatiquement `contact_digi = true`. |
+| `last_message_sent_at` | TIMESTAMPTZ | Date du dernier "Message à envoyer" marqué comme envoyé pour ce contact (depuis la vue Contacts par Owner). |
 | `niveau_de_relation` | TEXT | Valeur cache — maintenue par trigger depuis `contacts_membres_relations` |
 | `scoring` | INTEGER | Calculé automatiquement par trigger (max 100) |
 | `nb_personnes_digi_relation` | INTEGER | Cache — maintenu par trigger |
@@ -173,11 +175,10 @@ Le champ `contact_digi` marque un contact comme **réservé** — contacts cibl�
 | `admin` | ✅ | ✅ (badge orange) | ✅ (peut cocher/décocher) |
 
 **Comportement UI :**
-- La liste contacts affiche tous les contacts (réservés inclus) par défaut.
-- Les contacts réservés ont un fond légèrement ambré + badge "Réservé" orange visible aux AM et admins.
-- Le bouton **"Masquer les réservés"** (orange, admin uniquement) filtre ces contacts pour se concentrer sur les actionnables.
+- `contact_digi` est piloté automatiquement par la liste déroulante "Historique relationnel" dans le drawer : sélectionner "Réservé" passe `contact_digi = true`, tout autre choix le repasse à `false`.
+- Plus de case à cocher manuelle ni de bouton "Masquer les réservés".
+- Un filtre "Historique relationnel" est disponible dans la liste contacts (onglet Tout) pour filtrer par valeur.
 - En vue membre (scoped), les contacts réservés du réseau du membre sont chargés séparément (requête complémentaire, hors RPC) et ajoutés en fin de liste.
-- La case à cocher "Ce contact est réservé" dans le drawer est réservée aux admins.
 
 **Règle d'import :** ne jamais écraser `contact_digi` sur un contact existant lors d'un import.
 
@@ -205,6 +206,35 @@ UPDATE contacts SET is_digi_employee = true WHERE id = '<uuid>';
 ```
 
 **Règle d'import :** ne jamais écraser `is_digi_employee` sur un contact existant lors d'un import.
+
+---
+
+### Table : `qualification_logs`
+
+Historique des changements de champs sur les contacts (et potentiellement entreprises à terme).
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `id` | UUID PK | |
+| `entity_type` | TEXT | `'contact'` \| `'entreprise'` |
+| `entity_id` | UUID | ID du contact ou de l'entreprise |
+| `field_changed` | TEXT | Nom du champ modifié (ex : `'statut_contact'`) |
+| `old_value` | TEXT | Valeur avant le changement (`NULL` pour les entrées initiales) |
+| `new_value` | TEXT | Valeur après le changement |
+| `source` | TEXT | `'manual'` \| `'llm'` \| `'phantombuster'` \| `'import'` \| `'trigger'` |
+| `metadata` | JSONB | Données complémentaires |
+| `created_by` | UUID | |
+| `created_at` | TIMESTAMPTZ | Date exacte du changement |
+
+**Alimentée automatiquement** par le trigger `trg_log_statut_contact_change` à chaque modification de `statut_contact`. Les entrées initiales (import du 23/09/2026) ont `old_value = NULL` et `source = 'import'`.
+
+**Requête utile :**
+```sql
+SELECT old_value, new_value, created_at
+FROM qualification_logs
+WHERE entity_type = 'contact' AND entity_id = '<uuid>' AND field_changed = 'statut_contact'
+ORDER BY created_at DESC;
+```
 
 ---
 
@@ -294,6 +324,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `sync_partager_contacts_on_depart` | BEFORE UPDATE `actif` sur `membres_digilityx` | Force `partager_contacts = false` si `actif → false` |
 | `recompute_contact_masque` | AFTER INSERT/UPDATE/DELETE sur `contacts_membres_relations` | Recalcule `masque` sur le contact |
 | `trg_membre_partager_recompute_masque` | AFTER UPDATE `partager_contacts` sur `membres_digilityx` | Recalcule `masque` sur tous les contacts du membre |
+| `log_statut_contact_change` (`trg_log_statut_contact_change`) | AFTER UPDATE `statut_contact` sur `contacts` | Insère une ligne dans `qualification_logs` à chaque changement de statut |
 
 ### RPCs (appelées depuis le frontend)
 
@@ -310,7 +341,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `contact_counts_for_entreprises(ids)` | Nb de contacts agrégé par `entreprise_id` |
 | `get_dashboard_stats()` | 9 compteurs pour le dashboard en un seul appel |
 | `get_secteur_stats()` | Nb d'entreprises par secteur |
-| `get_owner_a_contacter_contacts(p_owner_id)` | Contacts d'un owner triés par statut (SECURITY DEFINER — contourne RLS). Retourne : id, first_name, last_name, position, company_name, scoring, tier (depuis entreprises), entreprise_id, niveau_de_relation (depuis contacts_membres_relations), account_manager_name, account_manager_slack_user_id, statut_contact. Ordre : À contacter en premier, puis par scoring DESC. Exclut masque=true et contact_digi=true. |
+| `get_owner_a_contacter_contacts(p_owner_id)` | Contacts d'un owner triés par statut (SECURITY DEFINER — contourne RLS). Retourne : id, first_name, last_name, position, company_name, scoring, tier, entreprise_id, niveau_de_relation, account_manager_name, account_manager_slack_user_id, statut_contact, statut_contact_changed_at (dernière date de changement de statut depuis qualification_logs), last_message_sent_at. Ordre : À contacter en premier, puis par scoring DESC. Exclut masque=true et contact_digi=true. |
 
 ---
 
@@ -325,9 +356,9 @@ Prend `{ slack_user_id, message }` dans le body et envoie un DM Slack à l'utili
 | Système | Déclencheur | Champ de traçabilité | Envoi |
 |---------|-------------|----------------------|-------|
 | Relance "qualifier" | Vue Tier ou Vue Membre Digi | `last_slack_nudge_at` (24h, bloque le bouton) | Automatique via Edge Function |
-| Relance "À contacter" | Contacts par Owner → colonne "À contacter" | `last_relance_contact_at` (date de marquage) | **Manuel** — l'admin copie le message et l'envoie lui-même sur Slack |
+| Relance "Message à envoyer" | Contacts par Owner → colonne "Sélectionné" | `contacts.last_message_sent_at` (par contact, persistant) + `membres_digilityx.last_relance_contact_at` (par membre, date de la dernière action) | **Manuel** — l'admin copie le message et l'envoie lui-même sur Slack |
 
-Les deux champs sont **indépendants** : marquer un contact comme relancé ne bloque pas la relance de qualification, et inversement.
+Les deux systèmes sont **indépendants** : marquer un message comme envoyé ne bloque pas la relance de qualification, et inversement. La date affichée sous "Message envoyé" est lue depuis `contacts.last_message_sent_at` — elle persiste après rechargement.
 
 Les autres fonctions prévues initialement (qualify-with-llm, process-phantombuster, sync-google-sheets) **ne sont pas encore implémentées**.
 
@@ -412,7 +443,7 @@ actif                    BOOLEAN DEFAULT true
 partager_contacts        BOOLEAN DEFAULT true
 slack_user_id            TEXT   -- identifiant Slack format U... (ex: U017Z701THU)
 last_slack_nudge_at      TIMESTAMPTZ  -- dernière relance Slack "qualifier tes contacts" (Vue Tier / Vue Membre Digi)
-last_relance_contact_at  TIMESTAMPTZ  -- dernière relance Slack "À contacter" par contact spécifique (Contacts par Owner)
+last_relance_contact_at  TIMESTAMPTZ  -- colonne conservée en base mais plus utilisée côté frontend (remplacée par contacts.last_message_sent_at)
 created_at               TIMESTAMPTZ
 ```
 
@@ -513,17 +544,19 @@ Un contact est masqué (`masque = true`) dans deux cas :
 ## 📊 Page `/membres` — détail des onglets (admin)
 
 ### Onglet "Contacts par Owner"
-Tableau des membres Digi triés par nombre de contacts dans leur réseau. Colonnes : Membre, Total contacts (réseau complet), Dont owner (contacts dont ils sont owner), puis une colonne par statut contact (À contacter, Contacté, Intéressé, Pas intéressé, Client).
+Tableau des membres Digi triés par nombre de contacts dont ils sont owner. Colonnes : Membre, Contacts (total owner), puis une colonne par statut contact (Sélectionné, À contacter, Contacté, Intéressé, Pas intéressé, Client à date, Client Digileads).
 
-**Toggle "À contacter uniquement"** (défaut ON) : filtre pour n'afficher que les membres ayant au moins un contact "À contacter".
+**Filtres** : dropdown Statut (filtre par statut_contact) et dropdown Owner (filtre par membre). Les badges statut sont colorés selon la palette : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy.
 
-**Dépliage par membre** : cliquer sur un membre ayant des contacts "À contacter" charge via RPC `get_owner_a_contacter_contacts` et affiche les contacts en sous-lignes alignées sur les colonnes de statut. Chaque contact affiche : nom (lien vers /contacts), poste · entreprise + badges relation/tier/score sur la 1re ligne, AM sur la 2e ligne. Dans la colonne "À contacter", un bouton **Relancer** ouvre la modale de prévisualisation.
+**Dates** : sous chaque badge statut s'affiche la date du dernier changement de statut (depuis `qualification_logs`), sauf pour "Sélectionné" qui a sa propre logique.
+
+**Dépliage par membre** : cliquer sur un membre charge via RPC `get_owner_a_contacter_contacts` et affiche les contacts en sous-lignes. Dans la colonne "Sélectionné", un bouton **Message à envoyer** ouvre la modale de prévisualisation.
 
 **Modale prévisualisation** :
 - Barre de variables visuelles (Owner, Contact, Poste, Entreprise, Relation, AM) pour voir en un coup d'œil ce qui a été injecté dans le message
 - Textarea éditable avec le message personnalisé pré-rempli
 - Bouton **Copier** (presse-papiers) pour copier le texte et l'envoyer manuellement sur Slack
-- Bouton **Marquer comme relancé** : enregistre la date dans `last_relance_contact_at` en base, ferme la modale, et affiche "✓ Relancé · il y a Xh" sur la ligne du contact (session uniquement — se remet à zéro au rechargement)
+- Bouton **Marquer comme envoyé** : enregistre la date dans `last_message_sent_at` sur le contact ET dans `last_relance_contact_at` sur le membre, ferme la modale, et affiche "✓ Message envoyé · il y a Xh" sur la ligne du contact (persistant — lu depuis `contacts.last_message_sent_at`)
 - **Pas d'envoi automatique** : l'admin envoie le message lui-même sur Slack en mettant owner et AM en copie
 
 ### Onglet "Entreprises par AM"
@@ -536,6 +569,26 @@ Tableau par membre avec répartition Tier 1 / Tier 2 / Tier 3 / Hors-Tier / Sans
 
 ### Onglet "Vue Membre Digi"
 Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre sélectionné avec leurs détails. Bouton Slack individuel → relance "qualifier" (même règle `last_slack_nudge_at` 24h).
+
+---
+
+## 📋 Page `/contacts` — détail
+
+**Colonnes du tableau :** Contact, Entreprise, Statut, Historique, Relation (scoped uniquement), Digi, Score.
+
+**Badges colorés :**
+- `statut_contact` : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy
+- `historique_relationnel` : Réservé=ambre, Deal/Mission en cours=ambre, A recontacter N+1=orange, En attente de retour=bleu, Ancien client Digi=violet, Jamais contacté=gris
+
+**Filtres disponibles :** Tier, Statut contact, Historique relationnel, Owner, Account Manager. Bouton "Effacer" si filtre actif.
+
+---
+
+## 🏢 Page `/entreprises` — détail
+
+**Filtres disponibles :** Tier, Secteur (multi-select), Account Manager. Les filtres "Statut commercial" et "Statut Digi" ont été retirés.
+
+**Fiche entreprise (drawer) :** Les champs "Statut" (statut_entreprise) et "Statut DIGI" (statut_digi) sont affichés en lecture seule — non modifiables depuis l'UI.
 
 ---
 
