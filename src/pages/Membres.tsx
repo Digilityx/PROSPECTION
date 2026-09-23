@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Loader2, Users, Building2, UserCircle, ChevronDown, Check, Download, Layers, Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
@@ -22,11 +23,13 @@ interface MembreStats {
   unqualifiedTier1: number
 }
 
-const statsCache: {
-  owner: MembreStats[] | null
-  am: MembreStats[] | null
-  tier: MembreStats[] | null
-} = { owner: null, am: null, tier: null }
+type MemberItem = {
+  id: string
+  full_name: string
+  slack_user_id: string | null
+  last_slack_nudge_at: string | null
+  last_relance_contact_at: string | null
+}
 
 const STATUTS_ENTREPRISE = [
   'À démarcher', 'Activement démarché', 'Deal en cours', 'Devenu client Digileads',
@@ -192,16 +195,10 @@ Merci à tous les 2 pour votre aide 🙏`
 type Tab = 'owner' | 'account_manager' | 'tier' | 'membre_digi'
 
 export default function Membres() {
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('owner')
-  const [membresCount, setMembresCount] = useState(0)
   const [tierOnlyUnqualified, setTierOnlyUnqualified] = useState(false)
   const [ownerOnlyAContacter, setOwnerOnlyAContacter] = useState(true)
-  const [ownerStats, setOwnerStats] = useState<MembreStats[]>(statsCache.owner ?? [])
-  const [amStats, setAmStats] = useState<MembreStats[]>(statsCache.am ?? [])
-  const [tierStats, setTierStats] = useState<MembreStats[]>(statsCache.tier ?? [])
-  const [loadingOwner, setLoadingOwner] = useState(statsCache.owner === null)
-  const [loadingAM, setLoadingAM] = useState(statsCache.am === null)
-  const [loadingTier, setLoadingTier] = useState(statsCache.tier === null)
   const [tierSlackState, setTierSlackState] = useState<Record<string, 'sending' | 'sent'>>({})
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
@@ -212,187 +209,158 @@ export default function Membres() {
   const [contactRelanceDates, setContactRelanceDates] = useState<Record<string, string>>({})
   const [markingRelance, setMarkingRelance] = useState(false)
 
-  const ownerLoadedRef = useRef(statsCache.owner !== null)
-  const amLoadedRef = useRef(statsCache.am !== null)
-  const tierLoadedRef = useRef(statsCache.tier !== null)
-
   // Vue Membre Digi
-  const [allMembres, setAllMembres] = useState<{ id: string; full_name: string; slack_user_id: string | null; last_slack_nudge_at: string | null; last_relance_contact_at: string | null }[]>([])
   const [selectedMembre, setSelectedMembre] = useState<string>('all')
   const [membreTierFilter, setMembreTierFilter] = useState<string>('all')
   const [membreSecteurFilter, setMembreSecteurFilter] = useState<string[]>([])
-  const [membreContacts, setMembreContacts] = useState<MembreContact[]>([])
-  const [totalMembreContacts, setTotalMembreContacts] = useState<number | null>(null)
-  const [loadingMembreContacts, setLoadingMembreContacts] = useState(false)
   const [sendingSlack, setSendingSlack] = useState(false)
   const [slackSent, setSlackSent] = useState(false)
 
-  // Lightweight membres list — always needed (header count + Membre Digi selector)
-  useEffect(() => {
-    supabase
-      .from('membres_digilityx')
-      .select('id, full_name, slack_user_id, last_slack_nudge_at, last_relance_contact_at')
-      .eq('actif', true)
-      .eq('partager_contacts', true)
-      .order('full_name')
-      .then(({ data }) => {
-        const list = (data ?? []) as { id: string; full_name: string; slack_user_id: string | null; last_slack_nudge_at: string | null; last_relance_contact_at: string | null }[]
-        setAllMembres(list)
-        setMembresCount(list.length)
-      })
-  }, [])
+  // Membres list — always needed (header count + dropdowns + Slack buttons)
+  const { data: allMembres = [] } = useQuery<MemberItem[]>({
+    queryKey: ['membres-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('membres_digilityx')
+        .select('id, full_name, slack_user_id, last_slack_nudge_at, last_relance_contact_at')
+        .eq('actif', true)
+        .eq('partager_contacts', true)
+        .order('full_name')
+      if (error) throw error
+      return (data ?? []) as MemberItem[]
+    },
+  })
+  const membresCount = allMembres.length
 
-  // Lazy-load stats the first time each tab is opened — waits for membres list
-  useEffect(() => {
-    if (allMembres.length === 0) return
-    if (tab === 'owner' && !ownerLoadedRef.current) {
-      ownerLoadedRef.current = true
-      loadOwnerStats(allMembres)
-    } else if (tab === 'account_manager' && !amLoadedRef.current) {
-      amLoadedRef.current = true
-      loadAMStats(allMembres)
-    } else if (tab === 'tier' && !tierLoadedRef.current) {
-      tierLoadedRef.current = true
-      loadTierStats(allMembres)
-    }
-  }, [tab, allMembres])
+  // Owner stats — all 3 queries enabled as soon as membres load; data is prefetched in background
+  const { data: ownerStats = [], isLoading: loadingOwner } = useQuery<MembreStats[]>({
+    queryKey: ['membres-owner-stats', allMembres.map(m => m.id)],
+    queryFn: async () => {
+      const [reseauResults, { data: ownerRpc }] = await Promise.all([
+        (async () => {
+          const counts: Record<string, number> = {}
+          for (const m of allMembres) {
+            const { data } = await supabase.rpc('count_contacts_for_membre', { p_membre_id: m.id })
+            counts[m.id] = typeof data === 'number' ? data : 0
+          }
+          return counts
+        })(),
+        supabase.rpc('get_owner_contact_stats'),
+      ])
 
-  async function loadOwnerStats(membres: typeof allMembres) {
-    setLoadingOwner(true)
+      const ownerLookup = new Map<string, Record<string, number>>()
+      for (const row of (ownerRpc ?? []) as { owner_membre_id: string; statut_contact: string | null; cnt: number }[]) {
+        if (!ownerLookup.has(row.owner_membre_id)) ownerLookup.set(row.owner_membre_id, {})
+        ownerLookup.get(row.owner_membre_id)![row.statut_contact ?? '(vide)'] = Number(row.cnt)
+      }
 
-    const [reseauResults, { data: ownerRpc }] = await Promise.all([
-      (async () => {
-        const counts: Record<string, number> = {}
-        for (const m of membres) {
-          const { data } = await supabase.rpc('count_contacts_for_membre', { p_membre_id: m.id })
-          counts[m.id] = typeof data === 'number' ? data : 0
+      const results: MembreStats[] = allMembres.map(m => {
+        const counts = ownerLookup.get(m.id) ?? {}
+        const byStatut: Record<string, number> = {}
+        let total = 0
+        for (const s of STATUTS_CONTACT) {
+          byStatut[s] = counts[s] ?? 0
+          total += byStatut[s]
         }
-        return counts
-      })(),
-      supabase.rpc('get_owner_contact_stats'),
-    ])
+        for (const [k, v] of Object.entries(counts)) {
+          if (!STATUTS_CONTACT.includes(k)) total += v
+        }
+        return { ...m, total, totalReseau: reseauResults[m.id] ?? 0, byStatut, unqualifiedTier1: 0 }
+      })
 
-    const ownerLookup = new Map<string, Record<string, number>>()
-    for (const row of (ownerRpc ?? []) as { owner_membre_id: string; statut_contact: string | null; cnt: number }[]) {
-      if (!ownerLookup.has(row.owner_membre_id)) ownerLookup.set(row.owner_membre_id, {})
-      ownerLookup.get(row.owner_membre_id)![row.statut_contact ?? '(vide)'] = Number(row.cnt)
-    }
+      return results.sort((a, b) => b.totalReseau - a.totalReseau)
+    },
+    enabled: allMembres.length > 0,
+  })
 
-    const results: MembreStats[] = membres.map(m => {
-      const counts = ownerLookup.get(m.id) ?? {}
-      const byStatut: Record<string, number> = {}
-      let total = 0
-      for (const s of STATUTS_CONTACT) {
-        byStatut[s] = counts[s] ?? 0
-        total += byStatut[s]
+  // AM stats
+  const { data: amStats = [], isLoading: loadingAM } = useQuery<MembreStats[]>({
+    queryKey: ['membres-am-stats'],
+    queryFn: async () => {
+      const { data: rpcData } = await supabase.rpc('get_am_entreprise_stats')
+
+      const lookup = new Map<string, Record<string, number>>()
+      for (const row of (rpcData ?? []) as { account_manager_id: string; statut_entreprise: string | null; cnt: number }[]) {
+        if (!lookup.has(row.account_manager_id)) lookup.set(row.account_manager_id, {})
+        lookup.get(row.account_manager_id)![row.statut_entreprise ?? '(vide)'] = Number(row.cnt)
       }
-      for (const [k, v] of Object.entries(counts)) {
-        if (!STATUTS_CONTACT.includes(k)) total += v
+
+      const stats: MembreStats[] = allMembres.map(m => {
+        const counts = lookup.get(m.id) ?? {}
+        const byStatut: Record<string, number> = {}
+        let total = 0
+        for (const s of STATUTS_ENTREPRISE) {
+          byStatut[s] = counts[s] ?? 0
+          total += byStatut[s]
+        }
+        for (const [k, v] of Object.entries(counts)) {
+          if (!STATUTS_ENTREPRISE.includes(k)) total += v
+        }
+        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0 }
+      })
+
+      return stats.sort((a, b) => b.total - a.total)
+    },
+    enabled: allMembres.length > 0,
+  })
+
+  // Tier stats
+  const { data: tierStats = [], isLoading: loadingTier } = useQuery<MembreStats[]>({
+    queryKey: ['membres-tier-stats'],
+    queryFn: async () => {
+      await supabase.auth.refreshSession()
+      const [{ data: rpcData }, { data: unqualifiedData }] = await Promise.all([
+        supabase.rpc('get_membre_relations_by_tier'),
+        supabase.rpc('get_membre_tier1_unqualified_count'),
+      ])
+
+      if (!rpcData) return []
+
+      const lookup = new Map<string, Record<string, number>>()
+      for (const row of (rpcData ?? []) as { membre_id: string; tier: string; cnt: number }[]) {
+        if (!lookup.has(row.membre_id)) lookup.set(row.membre_id, {})
+        lookup.get(row.membre_id)![row.tier] = Number(row.cnt)
       }
-      return { ...m, total, totalReseau: reseauResults[m.id] ?? 0, byStatut, unqualifiedTier1: 0 }
-    })
 
-    const sorted = results.sort((a, b) => b.totalReseau - a.totalReseau)
-    statsCache.owner = sorted
-    setOwnerStats(sorted)
-    setLoadingOwner(false)
-
-  }
-
-  async function loadAMStats(membres: typeof allMembres) {
-    setLoadingAM(true)
-    const { data: rpcData } = await supabase.rpc('get_am_entreprise_stats')
-
-    const lookup = new Map<string, Record<string, number>>()
-    for (const row of (rpcData ?? []) as { account_manager_id: string; statut_entreprise: string | null; cnt: number }[]) {
-      if (!lookup.has(row.account_manager_id)) lookup.set(row.account_manager_id, {})
-      const key = row.statut_entreprise ?? '(vide)'
-      lookup.get(row.account_manager_id)![key] = Number(row.cnt)
-    }
-
-    const stats: MembreStats[] = membres.map(m => {
-      const counts = lookup.get(m.id) ?? {}
-      const byStatut: Record<string, number> = {}
-      let total = 0
-      for (const s of STATUTS_ENTREPRISE) {
-        byStatut[s] = counts[s] ?? 0
-        total += byStatut[s]
+      const unqualifiedLookup = new Map<string, number>()
+      for (const row of (unqualifiedData ?? []) as { membre_id: string; cnt: number }[]) {
+        unqualifiedLookup.set(row.membre_id, Number(row.cnt))
       }
-      for (const [k, v] of Object.entries(counts)) {
-        if (!STATUTS_ENTREPRISE.includes(k)) total += v
+
+      const stats: MembreStats[] = allMembres.map(m => {
+        const counts = lookup.get(m.id) ?? {}
+        const byStatut: Record<string, number> = {}
+        let total = 0
+        for (const t of TIERS) {
+          byStatut[t] = counts[t] ?? 0
+          total += byStatut[t]
+        }
+        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: unqualifiedLookup.get(m.id) ?? 0 }
+      })
+
+      // Sort by Tier 1 desc
+      return stats.sort((a, b) => (b.byStatut['Tier 1'] ?? 0) - (a.byStatut['Tier 1'] ?? 0))
+    },
+    enabled: allMembres.length > 0,
+  })
+
+  // Membre digi contacts — per-selected membre, cached individually
+  const { data: membreContactsData, isLoading: loadingMembreContacts } = useQuery({
+    queryKey: ['membre-digi-contacts', selectedMembre],
+    queryFn: async () => {
+      const [{ data }, { data: count }] = await Promise.all([
+        supabase.rpc('get_membre_contacts', { p_membre_id: selectedMembre }),
+        supabase.rpc('count_contacts_for_membre', { p_membre_id: selectedMembre }),
+      ])
+      return {
+        contacts: ((data ?? []) as MembreContact[]).filter(c => !c.masque),
+        total: typeof count === 'number' ? count : null,
       }
-      return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0 }
-    })
-
-    const sorted = stats.sort((a, b) => b.total - a.total)
-    statsCache.am = sorted
-    setAmStats(sorted)
-    setLoadingAM(false)
-  }
-
-  async function loadTierStats(membres: typeof allMembres) {
-    setLoadingTier(true)
-    await supabase.auth.refreshSession()
-    const [{ data: rpcData }, { data: unqualifiedData }] = await Promise.all([
-      supabase.rpc('get_membre_relations_by_tier'),
-      supabase.rpc('get_membre_tier1_unqualified_count'),
-    ])
-
-    if (!rpcData) {
-      tierLoadedRef.current = false
-      setLoadingTier(false)
-      return
-    }
-
-    const lookup = new Map<string, Record<string, number>>()
-    for (const row of (rpcData ?? []) as { membre_id: string; tier: string; cnt: number }[]) {
-      if (!lookup.has(row.membre_id)) lookup.set(row.membre_id, {})
-      lookup.get(row.membre_id)![row.tier] = Number(row.cnt)
-    }
-
-    const unqualifiedLookup = new Map<string, number>()
-    for (const row of (unqualifiedData ?? []) as { membre_id: string; cnt: number }[]) {
-      unqualifiedLookup.set(row.membre_id, Number(row.cnt))
-    }
-
-    const stats: MembreStats[] = membres.map(m => {
-      const counts = lookup.get(m.id) ?? {}
-      const byStatut: Record<string, number> = {}
-      let total = 0
-      for (const t of TIERS) {
-        byStatut[t] = counts[t] ?? 0
-        total += byStatut[t]
-      }
-      return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: unqualifiedLookup.get(m.id) ?? 0 }
-    })
-
-    // Sort by Tier 1 desc — flag the most connected on hot accounts first
-    const sorted = stats.sort((a, b) => (b.byStatut['Tier 1'] ?? 0) - (a.byStatut['Tier 1'] ?? 0))
-    statsCache.tier = sorted
-    setTierStats(sorted)
-    setLoadingTier(false)
-  }
-
-  // Load contacts for selected membre
-  useEffect(() => {
-    if (tab !== 'membre_digi' || selectedMembre === 'all') {
-      setMembreContacts([])
-      return
-    }
-    setLoadingMembreContacts(true)
-    setMembreTierFilter('all')
-    setMembreSecteurFilter([])
-    setSlackSent(false)
-    setTotalMembreContacts(null)
-    Promise.all([
-      supabase.rpc('get_membre_contacts', { p_membre_id: selectedMembre }),
-      supabase.rpc('count_contacts_for_membre', { p_membre_id: selectedMembre }),
-    ]).then(([{ data }, { data: count }]) => {
-      setMembreContacts(((data ?? []) as MembreContact[]).filter(c => !c.masque))
-      setTotalMembreContacts(typeof count === 'number' ? count : null)
-      setLoadingMembreContacts(false)
-    })
-  }, [tab, selectedMembre])
+    },
+    enabled: selectedMembre !== 'all',
+  })
+  const membreContacts = membreContactsData?.contacts ?? []
+  const totalMembreContacts = membreContactsData?.total ?? null
 
   const isLoading = tab === 'owner' ? loadingOwner
     : tab === 'account_manager' ? loadingAM
@@ -467,7 +435,7 @@ export default function Membres() {
       {/* Content */}
       {tab === 'membre_digi' ? (
         <div className="space-y-4">
-          <Select value={selectedMembre} onValueChange={(v) => { if (v) setSelectedMembre(v) }}>
+          <Select value={selectedMembre} onValueChange={(v) => { if (v) { setSelectedMembre(v); setMembreTierFilter('all'); setMembreSecteurFilter([]); setSlackSent(false) } }}>
             <SelectTrigger className="w-full max-w-[280px]">
               <SelectValue>{selectedMembre === 'all' ? 'Sélectionner un membre' : allMembres.find(m => m.id === selectedMembre)?.full_name}</SelectValue>
             </SelectTrigger>
@@ -592,7 +560,7 @@ export default function Membres() {
                               })
                               const nudgeAt = new Date().toISOString()
                               await supabase.from('membres_digilityx').update({ last_slack_nudge_at: nudgeAt }).eq('id', selectedMembre)
-                              setAllMembres(prev => prev.map(a => a.id === selectedMembre ? { ...a, last_slack_nudge_at: nudgeAt } : a))
+                              queryClient.setQueryData<MemberItem[]>(['membres-list'], old => old?.map(a => a.id === selectedMembre ? { ...a, last_slack_nudge_at: nudgeAt } : a) ?? [])
                               setSlackSent(true)
                               setTimeout(() => setSlackSent(false), 5000)
                             } finally {
@@ -727,7 +695,7 @@ export default function Membres() {
                           })
                           const nudgeAt = new Date().toISOString()
                           await supabase.from('membres_digilityx').update({ last_slack_nudge_at: nudgeAt }).eq('id', m.id)
-                          setAllMembres(prev => prev.map(a => a.id === m.id ? { ...a, last_slack_nudge_at: nudgeAt } : a))
+                          queryClient.setQueryData<MemberItem[]>(['membres-list'], old => old?.map(a => a.id === m.id ? { ...a, last_slack_nudge_at: nudgeAt } : a) ?? [])
                         } catch { /* continue on error */ }
                         setBulkProgress({ done: i + 1, total: eligible.length })
                       }
@@ -851,7 +819,7 @@ export default function Membres() {
                                         })
                                         const nudgeAt = new Date().toISOString()
                                         await supabase.from('membres_digilityx').update({ last_slack_nudge_at: nudgeAt }).eq('id', m.id)
-                                        setAllMembres(prev => prev.map(a => a.id === m.id ? { ...a, last_slack_nudge_at: nudgeAt } : a))
+                                        queryClient.setQueryData<MemberItem[]>(['membres-list'], old => old?.map(a => a.id === m.id ? { ...a, last_slack_nudge_at: nudgeAt } : a) ?? [])
                                         setTierSlackState(prev => ({ ...prev, [m.id]: 'sent' }))
                                         setTimeout(() => setTierSlackState(prev => {
                                           const next = { ...prev }
@@ -1058,7 +1026,7 @@ export default function Membres() {
                       try {
                         const nudgeAt = new Date().toISOString()
                         await supabase.from('membres_digilityx').update({ last_relance_contact_at: nudgeAt }).eq('id', contactSlackPreview.ownerId)
-                        setAllMembres(prev => prev.map(a => a.id === contactSlackPreview.ownerId ? { ...a, last_relance_contact_at: nudgeAt } : a))
+                        queryClient.setQueryData<MemberItem[]>(['membres-list'], old => old?.map(a => a.id === contactSlackPreview.ownerId ? { ...a, last_relance_contact_at: nudgeAt } : a) ?? [])
                         setContactRelanceDates(prev => ({ ...prev, [contactSlackPreview.contact.id]: nudgeAt }))
                         setContactSlackPreview(null)
                       } finally {

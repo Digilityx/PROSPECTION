@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { Users, Search, ChevronLeft, ChevronRight, X, Building2, FilterX, ArrowUp, ArrowDown, ExternalLink, Info, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -160,9 +160,30 @@ export default function Contacts() {
 
   const restrictToMembreId = !userIsAdmin || onlyMine ? membre?.id ?? null : null
   const scoped = restrictToMembreId !== null
+  const queryClient = useQueryClient()
 
-  const { data: contacts, loading, refetch } = useSupabaseQuery<ContactRow[]>(
-    async () => {
+  const contactsKey = [
+    'contacts',
+    {
+      scoped,
+      membreId: restrictToMembreId,
+      page,
+      tier: tierFilter,
+      statut: statutFilter,
+      relation: relationFilter,
+      owner: ownerFilter,
+      am: amFilter,
+      search: debouncedSearch,
+      entreprise: entrepriseFilter,
+      scoreAsc,
+      unqualifiedFirst,
+      hideReserved,
+    },
+  ] as const
+
+  const { data: contacts, isLoading: loading } = useQuery({
+    queryKey: contactsKey,
+    queryFn: async () => {
       if (restrictToMembreId) {
         const { data, error } = await supabase.rpc('get_contacts_for_membre', {
           p_membre_id: restrictToMembreId,
@@ -179,7 +200,8 @@ export default function Contacts() {
           p_limit: PAGE_SIZE,
           p_unqualified_first: unqualifiedFirst,
         })
-        return { data: (data ?? []) as ContactRow[], error }
+        if (error) throw error
+        return (data ?? []) as ContactRow[]
       }
 
       const needsEntrepriseJoin = tierFilter !== 'all' || amFilter !== 'all'
@@ -192,7 +214,6 @@ export default function Contacts() {
         .order('scoring', { ascending: scoreAsc })
 
       if (hideReserved) query = query.eq('contact_digi', false)
-
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
@@ -203,27 +224,46 @@ export default function Contacts() {
         query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,company_name.ilike.%${s}%`)
       }
 
-      return query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+      const { data, error } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+      if (error) throw error
+      return (data ?? []) as ContactRow[]
     },
-    [page, statutFilter, tierFilter, relationFilter, ownerFilter, amFilter, scoreAsc, unqualifiedFirst, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
-  )
+  })
 
-  const { data: unqualifiedCountResult } = useSupabaseQuery<number>(
-    async () => {
-      if (!restrictToMembreId) return { data: 0, error: null }
+  const { data: unqualifiedCountResult } = useQuery({
+    queryKey: ['contacts-unqualified-count', restrictToMembreId],
+    queryFn: async () => {
+      if (!restrictToMembreId) return 0
       const { data, error } = await supabase.rpc('count_contacts_for_membre', {
         p_membre_id: restrictToMembreId,
         p_tier: 'Tier 1',
         p_niveau_relation: 'Non renseigné',
       })
-      return { data: Number(data ?? 0), error }
+      if (error) throw error
+      return Number(data ?? 0)
     },
-    [restrictToMembreId]
-  )
+  })
   const unqualifiedCount = unqualifiedCountResult ?? 0
 
-  const { data: countResult } = useSupabaseQuery<{ count: number }[]>(
-    async () => {
+  const countKey = [
+    'contacts-count',
+    {
+      scoped,
+      membreId: restrictToMembreId,
+      tier: tierFilter,
+      statut: statutFilter,
+      relation: relationFilter,
+      owner: ownerFilter,
+      am: amFilter,
+      search: debouncedSearch,
+      entreprise: entrepriseFilter,
+      hideReserved,
+    },
+  ] as const
+
+  const { data: countResult } = useQuery({
+    queryKey: countKey,
+    queryFn: async () => {
       if (restrictToMembreId) {
         const { data, error } = await supabase.rpc('count_contacts_for_membre', {
           p_membre_id: restrictToMembreId,
@@ -236,7 +276,8 @@ export default function Contacts() {
           p_niveau_relation: relationFilter === 'all' ? null : relationFilter,
           p_search: debouncedSearch.trim() || null,
         })
-        return { data: [{ count: Number(data ?? 0) }], error }
+        if (error) throw error
+        return Number(data ?? 0)
       }
 
       const needsEntrepriseJoin = tierFilter !== 'all' || amFilter !== 'all'
@@ -261,15 +302,16 @@ export default function Contacts() {
       }
 
       const res = await query
-      return { data: [{ count: res.count ?? 0 }], error: res.error }
+      if (res.error) throw res.error
+      return res.count ?? 0
     },
-    [statutFilter, tierFilter, ownerFilter, amFilter, relationFilter, debouncedSearch, entrepriseFilter, restrictToMembreId, hideReserved]
-  )
+  })
 
   // Contacts réservés dans le réseau du membre (le RPC les exclut — on les charge séparément)
-  const { data: reservedForMembre } = useSupabaseQuery<ContactRow[]>(
-    async () => {
-      if (!restrictToMembreId || hideReserved) return { data: [], error: null }
+  const { data: reservedForMembre } = useQuery({
+    queryKey: ['contacts-reserved', restrictToMembreId, hideReserved],
+    queryFn: async () => {
+      if (!restrictToMembreId || hideReserved) return [] as ContactRow[]
       const { data, error } = await supabase
         .from('contacts')
         .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, contacts_membres_relations!inner(membre_id)')
@@ -277,10 +319,10 @@ export default function Contacts() {
         .eq('is_digi_employee', false)
         .eq('masque', false)
         .eq('contacts_membres_relations.membre_id', restrictToMembreId)
-      return { data: (data ?? []) as unknown as ContactRow[], error }
+      if (error) throw error
+      return (data ?? []) as unknown as ContactRow[]
     },
-    [restrictToMembreId, hideReserved]
-  )
+  })
 
   const [entrepriseContactCounts, setEntrepriseContactCounts] = useState<Map<string, number>>(new Map())
   useEffect(() => {
@@ -311,7 +353,7 @@ export default function Contacts() {
     return () => { cancelled = true }
   }, [contacts])
 
-  const totalCount = countResult?.[0]?.count ?? 0
+  const totalCount = countResult ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
   const allContacts = scoped
     ? [...(contacts ?? []), ...(reservedForMembre ?? [])]
@@ -322,7 +364,7 @@ export default function Contacts() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
         <p className="text-muted-foreground">
-          {countResult ? (
+          {countResult !== undefined ? (
             <>{totalCount.toLocaleString('fr-FR')} {restrictToMembreId ? 'contacts liés à vous' : 'contacts avec scoring'}</>
 
           ) : (
@@ -692,7 +734,7 @@ export default function Contacts() {
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {countResult
+              {countResult !== undefined
                 ? <>Page {page + 1} / {totalPages || 1} · {totalCount.toLocaleString('fr-FR')} résultats</>
                 : <span className="italic">Calcul du nombre de résultats…</span>
               }
@@ -710,7 +752,7 @@ export default function Contacts() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={countResult ? page >= totalPages - 1 : (contacts?.length ?? 0) < PAGE_SIZE}
+                disabled={countResult !== undefined ? page >= totalPages - 1 : (contacts?.length ?? 0) < PAGE_SIZE}
                 onClick={() => setPage(p => p + 1)}
               >
                 Suivant
@@ -724,7 +766,10 @@ export default function Contacts() {
       <ContactDrawer
         contact={selected}
         onClose={() => setSelected(null)}
-        onSaved={() => { setSelected(null); refetch() }}
+        onSaved={() => {
+          setSelected(null)
+          queryClient.invalidateQueries({ queryKey: ['contacts'] })
+        }}
         isAdmin={userIsAdmin}
         onOpenEntreprise={async (entrepriseId) => {
           const { data } = await supabase
