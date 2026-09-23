@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Loader2, Users, Building2, UserCircle, ChevronDown, Check, Download, Layers } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Loader2, Users, Building2, UserCircle, ChevronDown, Check, Download, Layers, Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
@@ -142,12 +142,60 @@ function isWithin24h(dateStr: string | null): boolean {
   return (Date.now() - new Date(dateStr).getTime()) < 86_400_000
 }
 
+interface OwnerContact {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  position: string | null
+  company_name: string | null
+  scoring: number
+  tier: string | null
+  entreprise_id: string | null
+  niveau_de_relation: string | null
+  account_manager_name: string | null
+  account_manager_slack_user_id: string | null
+  statut_contact: string | null
+}
+
+function buildContactSlackMessage(
+  ownerFullName: string,
+  c: OwnerContact,
+): string {
+  const ownerFirst = ownerFullName.split(' ')[0]
+  const contactFull = [c.first_name, c.last_name].filter(Boolean).join(' ')
+  const contactFirst = c.first_name ?? contactFull
+  const relation = c.niveau_de_relation && c.niveau_de_relation !== 'Non renseigné' ? c.niveau_de_relation : 'contact'
+  const poste = c.position ?? 'professionnel·le'
+  const entreprise = c.company_name ?? 'son entreprise'
+  const am = c.account_manager_name ?? 'l\'Account Manager'
+
+  return `Bonjour ${ownerFirst}
+
+Dans le cadre de l'activation de la base de contacts sur DigiLeads, tu as identifié ${contactFull} comme ${relation}, ${poste} de ${entreprise}.
+
+Je mets ${am} dans la boucle pour t'aider à obtenir un échange et t'accompagner sur la détection d'une opportunité pour Digi.
+
+Afin de t'aider à rédiger un 1e message sur LinkedIn ou ailleurs, j'ai développé une skill Claude : /linkedin-nurturing
+
+Tu auras juste à remplir un formulaire et un message d'approche te sera proposé.
+
+Mes conseils pour décrocher une visio, un verre en afterwork, un déj etc.
+- En amont, analyse le profil LinkedIn et l'entreprise pour voir si Digi pourrait leur être utile
+- Fais valider tes envois de message à ${am} ou moi
+- En cas de rdv, n'hésite pas à te faire coacher ou à inviter ${am}
+
+Je vous laisse me dire quand ${contactFirst} aura été contacté et quelle aura été l'issue de vos échanges : intéressé / pas intéressé
+
+Merci à tous les 2 pour votre aide 🙏`
+}
+
 type Tab = 'owner' | 'account_manager' | 'tier' | 'membre_digi'
 
 export default function Membres() {
   const [tab, setTab] = useState<Tab>('owner')
   const [membresCount, setMembresCount] = useState(0)
   const [tierOnlyUnqualified, setTierOnlyUnqualified] = useState(false)
+  const [ownerOnlyAContacter, setOwnerOnlyAContacter] = useState(true)
   const [ownerStats, setOwnerStats] = useState<MembreStats[]>(statsCache.owner ?? [])
   const [amStats, setAmStats] = useState<MembreStats[]>(statsCache.am ?? [])
   const [tierStats, setTierStats] = useState<MembreStats[]>(statsCache.tier ?? [])
@@ -157,13 +205,19 @@ export default function Membres() {
   const [tierSlackState, setTierSlackState] = useState<Record<string, 'sending' | 'sent'>>({})
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
+  const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set())
+  const [ownerContactsCache, setOwnerContactsCache] = useState<Record<string, OwnerContact[]>>({})
+  const [loadingOwnerContacts, setLoadingOwnerContacts] = useState(false)
+  const [contactSlackPreview, setContactSlackPreview] = useState<{ contact: OwnerContact; ownerId: string; message: string } | null>(null)
+  const [contactRelanceDates, setContactRelanceDates] = useState<Record<string, string>>({})
+  const [markingRelance, setMarkingRelance] = useState(false)
 
   const ownerLoadedRef = useRef(statsCache.owner !== null)
   const amLoadedRef = useRef(statsCache.am !== null)
   const tierLoadedRef = useRef(statsCache.tier !== null)
 
   // Vue Membre Digi
-  const [allMembres, setAllMembres] = useState<{ id: string; full_name: string; slack_user_id: string | null; last_slack_nudge_at: string | null }[]>([])
+  const [allMembres, setAllMembres] = useState<{ id: string; full_name: string; slack_user_id: string | null; last_slack_nudge_at: string | null; last_relance_contact_at: string | null }[]>([])
   const [selectedMembre, setSelectedMembre] = useState<string>('all')
   const [membreTierFilter, setMembreTierFilter] = useState<string>('all')
   const [membreSecteurFilter, setMembreSecteurFilter] = useState<string[]>([])
@@ -177,12 +231,12 @@ export default function Membres() {
   useEffect(() => {
     supabase
       .from('membres_digilityx')
-      .select('id, full_name, slack_user_id, last_slack_nudge_at')
+      .select('id, full_name, slack_user_id, last_slack_nudge_at, last_relance_contact_at')
       .eq('actif', true)
       .eq('partager_contacts', true)
       .order('full_name')
       .then(({ data }) => {
-        const list = (data ?? []) as { id: string; full_name: string; slack_user_id: string | null; last_slack_nudge_at: string | null }[]
+        const list = (data ?? []) as { id: string; full_name: string; slack_user_id: string | null; last_slack_nudge_at: string | null; last_relance_contact_at: string | null }[]
         setAllMembres(list)
         setMembresCount(list.length)
       })
@@ -242,6 +296,7 @@ export default function Membres() {
     statsCache.owner = sorted
     setOwnerStats(sorted)
     setLoadingOwner(false)
+
   }
 
   async function loadAMStats(membres: typeof allMembres) {
@@ -352,6 +407,7 @@ export default function Membres() {
   const label = tab === 'account_manager' ? 'entreprises' : 'contacts'
 
   return (
+    <>
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Membres Digi</h1>
@@ -371,7 +427,7 @@ export default function Membres() {
           }`}
         >
           <Users className="h-4 w-4" />
-          Vue Owner
+          Contacts par Owner
         </button>
         <button
           onClick={() => setTab('account_manager')}
@@ -382,7 +438,7 @@ export default function Membres() {
           }`}
         >
           <Building2 className="h-4 w-4" />
-          Vue Account Manager
+          Entreprises par AM
         </button>
         <button
           onClick={() => setTab('tier')}
@@ -616,6 +672,21 @@ export default function Membres() {
         </div>
       ) : (
         <>
+          {tab === 'owner' && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOwnerOnlyAContacter(v => !v)}
+                className={`inline-flex items-center gap-1.5 h-8 rounded-lg border px-3 text-sm transition-colors ${
+                  ownerOnlyAContacter
+                    ? 'border-destructive bg-destructive/10 text-destructive'
+                    : 'border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                À contacter uniquement
+              </button>
+            </div>
+          )}
           {tab === 'tier' && (() => {
             const eligible = tierStats.filter(m => {
               if (m.unqualifiedTier1 === 0) return false
@@ -691,8 +762,8 @@ export default function Membres() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Membre</TableHead>
-                    {tab === 'owner' && <TableHead className="text-center">Total contacts</TableHead>}
-                    <TableHead className="text-center">{tab === 'owner' ? 'Total owner' : `Total ${label}`}</TableHead>
+                    {tab === 'owner' && <TableHead className="text-center w-[90px] whitespace-nowrap">Total contacts</TableHead>}
+                    <TableHead className="text-center w-[90px] whitespace-nowrap">{tab === 'owner' ? 'Dont owner' : `Total ${label}`}</TableHead>
                     {statuts.map(s => (
                       <TableHead key={s} className="text-center text-xs">{s}</TableHead>
                     ))}
@@ -700,15 +771,44 @@ export default function Membres() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stats.filter(m => m.total > 0 && (!tierOnlyUnqualified || m.unqualifiedTier1 > 0)).map(m => (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-medium whitespace-nowrap">{m.full_name}</TableCell>
+                  {stats.filter(m => m.total > 0 && (!tierOnlyUnqualified || m.unqualifiedTier1 > 0) && (tab !== 'owner' || !ownerOnlyAContacter || (m.byStatut['À contacter'] ?? 0) > 0)).map(m => (
+                    <React.Fragment key={m.id}>
+                    <TableRow>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {tab === 'owner' && (m.byStatut['À contacter'] ?? 0) > 0 ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setExpandedOwners(prev => {
+                                  const next = new Set(prev)
+                                  if (next.has(m.id)) { next.delete(m.id); return next }
+                                  next.add(m.id)
+                                  return next
+                                })
+                                if (ownerContactsCache[m.id]) return
+                                setLoadingOwnerContacts(true)
+                                const { data } = await supabase
+                                  .rpc('get_owner_a_contacter_contacts', { p_owner_id: m.id })
+                                setOwnerContactsCache(prev => ({ ...prev, [m.id]: data ?? [] }))
+                                setLoadingOwnerContacts(false)
+                              }}
+                              className="flex items-center gap-1.5 hover:text-primary transition-colors group"
+                            >
+                              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expandedOwners.has(m.id) ? 'rotate-180' : ''}`} />
+                              <span>{m.full_name}</span>
+                            </button>
+                          ) : (
+                            <span>{m.full_name}</span>
+                          )}
+                        </div>
+                      </TableCell>
                       {tab === 'owner' && (
-                        <TableCell className="text-center">
+                        <TableCell className="text-center w-[80px]">
                           <span className="font-bold">{m.totalReseau}</span>
                         </TableCell>
                       )}
-                      <TableCell className="text-center">
+                      <TableCell className="text-center w-[80px]">
                         <span className="font-bold">{m.total}</span>
                       </TableCell>
                       {statuts.map(s => (
@@ -789,6 +889,90 @@ export default function Membres() {
                         </TableCell>
                       )}
                     </TableRow>
+                    {tab === 'owner' && expandedOwners.has(m.id) && (
+                      loadingOwnerContacts && !ownerContactsCache[m.id] ? (
+                        <TableRow className="bg-muted/30">
+                          <TableCell colSpan={statuts.length + 3} className="text-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground inline" />
+                          </TableCell>
+                        </TableRow>
+                      ) : (ownerContactsCache[m.id] ?? []).filter(c => ownerOnlyAContacter ? c.statut_contact === 'À contacter' : c.statut_contact !== null).length === 0 ? (
+                        <TableRow className="bg-muted/30">
+                          <TableCell colSpan={statuts.length + 3} className="text-center text-xs text-muted-foreground py-4">Aucun contact trouvé.</TableCell>
+                        </TableRow>
+                      ) : (
+                        (ownerContactsCache[m.id] ?? [])
+                          .filter(c => ownerOnlyAContacter ? c.statut_contact === 'À contacter' : c.statut_contact !== null)
+                          .map(c => {
+                            const owner = allMembres.find(a => a.id === m.id)
+                            const relanceDate = contactRelanceDates[c.id] ?? null
+                            return (
+                              <TableRow key={c.id} className="bg-muted/20 hover:bg-muted/30">
+                                <TableCell>
+                                  <Link to={`/contacts?contact=${c.id}`} className="font-medium text-sm hover:underline">
+                                    {c.first_name} {c.last_name}
+                                  </Link>
+                                  <div className="flex flex-col gap-0.5 mt-0.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs text-muted-foreground">{c.position ?? '—'} · {c.company_name ?? '—'}</span>
+                                      {c.niveau_de_relation && c.niveau_de_relation !== 'Non renseigné' && (
+                                        <Badge variant="outline" className="text-xs">{c.niveau_de_relation}</Badge>
+                                      )}
+                                      {c.tier && (
+                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ c.tier === 'Tier 1' ? 'bg-[#050d2b] text-white' : c.tier === 'Tier 2' ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300' : c.tier === 'Tier 3' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-muted text-muted-foreground'}`}>{c.tier}</span>
+                                      )}
+                                      <span className={`text-xs font-medium ${c.scoring >= 70 ? 'text-emerald-600' : c.scoring >= 40 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                                        {c.scoring} pts
+                                      </span>
+                                    </div>
+                                    {c.account_manager_name && (
+                                      <span className="text-xs text-muted-foreground">AM : <span className="font-medium text-foreground">{c.account_manager_name}</span></span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell />{/* Total contacts */}
+                                <TableCell />{/* Dont owner */}
+                                {statuts.map(s => (
+                                  <TableCell key={s} className="text-center">
+                                    {c.statut_contact === s ? (
+                                      <div className="flex flex-col items-center gap-1">
+                                        <Badge
+                                          variant={s === 'À contacter' ? 'destructive' : 'secondary'}
+                                          className="text-xs"
+                                        >
+                                          {s}
+                                        </Badge>
+                                        {s === 'À contacter' && (() => {
+                                            if (relanceDate) {
+                                              return (
+                                                <div className="flex flex-col items-center gap-0.5">
+                                                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                                    <Check className="h-3 w-3" /> Relancé
+                                                  </span>
+                                                  <span className="text-xs text-muted-foreground">{relativeTime(relanceDate)}</span>
+                                                </div>
+                                              )
+                                            }
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={() => setContactSlackPreview({ contact: c, ownerId: m.id, message: buildContactSlackMessage(owner?.full_name ?? '', c) })}
+                                                className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-xs hover:bg-accent transition-colors"
+                                              >
+                                                Relancer
+                                              </button>
+                                            )
+                                          })()}
+                                      </div>
+                                    ) : null}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            )
+                          })
+                      )
+                    )}
+                    </React.Fragment>
                   ))}
                   {stats.filter(m => m.total === 0).length > 0 && (
                     <TableRow>
@@ -800,8 +984,100 @@ export default function Membres() {
                 </TableBody>
               </Table>
           </div>
+
         </>
       )}
     </div>
+
+      {/* Modal prévisualisation message Slack contact */}
+      {contactSlackPreview && (() => {
+        const owner = allMembres.find(a => a.id === contactSlackPreview.ownerId)
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setContactSlackPreview(null)}>
+            <div className="bg-background rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="px-6 pt-5 pb-4 border-b">
+                <h2 className="text-base font-semibold">Aperçu du message Slack</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Sera envoyé à <span className="font-medium text-foreground">{owner?.full_name}</span>
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                {(() => {
+                  const c = contactSlackPreview.contact
+                  const ownerFirst = owner?.full_name?.split(' ')[0] ?? ''
+                  const contactFull = [c.first_name, c.last_name].filter(Boolean).join(' ')
+                  const contactFirst = c.first_name ?? contactFull
+                  const relation = c.niveau_de_relation && c.niveau_de_relation !== 'Non renseigné' ? c.niveau_de_relation : 'contact'
+                  const poste = c.position ?? 'professionnel·le'
+                  const entreprise = c.company_name ?? 'son entreprise'
+                  const am = c.account_manager_name ?? "l'Account Manager"
+                  const bold = (v: string) => <strong className="font-semibold text-foreground">{v}</strong>
+                  const vars = [ownerFirst, contactFull, relation, poste, entreprise, am, contactFirst]
+                  const parts: React.ReactNode[] = []
+                  let remaining = contactSlackPreview.message
+                  let key = 0
+                  const processedVars = new Set<string>()
+                  while (remaining.length > 0) {
+                    let earliest = -1
+                    let earliestVar = ''
+                    for (const v of vars) {
+                      if (!v || processedVars.has(v)) continue
+                      const idx = remaining.indexOf(v)
+                      if (idx !== -1 && (earliest === -1 || idx < earliest)) {
+                        earliest = idx
+                        earliestVar = v
+                      }
+                    }
+                    if (earliest === -1) { parts.push(<React.Fragment key={key++}>{remaining}</React.Fragment>); break }
+                    if (earliest > 0) parts.push(<React.Fragment key={key++}>{remaining.slice(0, earliest)}</React.Fragment>)
+                    parts.push(<React.Fragment key={key++}>{bold(earliestVar)}</React.Fragment>)
+                    remaining = remaining.slice(earliest + earliestVar.length)
+                  }
+                  return (
+                    <div className="text-sm border rounded-lg p-4 bg-muted/30 leading-relaxed whitespace-pre-wrap font-mono min-h-[340px]">
+                      {parts}
+                    </div>
+                  )
+                })()}
+              </div>
+              <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+                  onClick={() => navigator.clipboard.writeText(contactSlackPreview.message)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copier
+                </button>
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" onClick={() => setContactSlackPreview(null)}>Annuler</Button>
+                  <Button
+                    disabled={markingRelance}
+                    onClick={async () => {
+                      setMarkingRelance(true)
+                      try {
+                        const nudgeAt = new Date().toISOString()
+                        await supabase.from('membres_digilityx').update({ last_relance_contact_at: nudgeAt }).eq('id', contactSlackPreview.ownerId)
+                        setAllMembres(prev => prev.map(a => a.id === contactSlackPreview.ownerId ? { ...a, last_relance_contact_at: nudgeAt } : a))
+                        setContactRelanceDates(prev => ({ ...prev, [contactSlackPreview.contact.id]: nudgeAt }))
+                        setContactSlackPreview(null)
+                      } finally {
+                        setMarkingRelance(false)
+                      }
+                    }}
+                  >
+                    {markingRelance
+                      ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      : <Check className="h-4 w-4 mr-2" />
+                    }
+                    Marquer comme relancé
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+    </>
   )
 }

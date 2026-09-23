@@ -40,6 +40,7 @@ interface ContactRow {
   scoring: number
   nb_personnes_digi_relation: number
   contact_digi: boolean
+  is_digi_employee: boolean
   entreprise_id: string | null
   owner_membre_id?: string | null
 }
@@ -77,14 +78,16 @@ interface Props {
   onClose: () => void
   onSaved: () => void
   isAdmin?: boolean
+  onOpenEntreprise?: (entrepriseId: string) => void
 }
 
-export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = true }: Props) {
+export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = true, onOpenEntreprise }: Props) {
   const [position, setPosition] = useState<string | null>(null)
   const [persona, setPersona] = useState<string | null>(null)
   const [hierarchie, setHierarchie] = useState<string | null>(null)
   const [statut, setStatut] = useState<string | null>(null)
   const [contactDigi, setContactDigi] = useState(false)
+  const [isDiGiEmployee, setIsDiGiEmployee] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Owner
@@ -118,6 +121,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
       setHierarchie(contact.hierarchie)
       setStatut(contact.statut_contact)
       setContactDigi(contact.contact_digi)
+      setIsDiGiEmployee(contact.is_digi_employee)
       setEntrepriseId(contact.entreprise_id)
       setRelationChanges({})
       setEntrepriseSearch('')
@@ -247,6 +251,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
         hierarchie: hierarchie || null,
         statut_contact: statut || null,
         contact_digi: contactDigi,
+        is_digi_employee: isDiGiEmployee,
         owner_membre_id: ownerMembreId || null,
         entreprise_id: entrepriseId || null,
         scoring: previewScore.total,
@@ -366,7 +371,17 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
             <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm font-medium">{linkedEntrepriseName}</span>
+                {onOpenEntreprise && entrepriseId ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenEntreprise(entrepriseId)}
+                    className="text-sm font-medium text-primary hover:underline text-left"
+                  >
+                    {linkedEntrepriseName}
+                  </button>
+                ) : (
+                  <span className="text-sm font-medium">{linkedEntrepriseName}</span>
+                )}
                 {linkedEntrepriseIsDigi && (
                   <span title="Client Digi"><DigiIcon className="h-4 w-4 shrink-0" /></span>
                 )}
@@ -550,6 +565,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
               <span className="text-sm">Ce contact est réservé</span>
             </label>
           </FieldGroup>
+
         </div>
         )}
 

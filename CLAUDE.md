@@ -81,7 +81,7 @@ Les rôles sont portés par le champ `role` sur `membres_digilityx` (pas une tab
 | `consent` | BOOLEAN | |
 | `created_at` | TIMESTAMPTZ | |
 
-**Règle :** quand `actif` passe à `false`, `partager_contacts` est forcé à `false` automatiquement (trigger `sync_partager_contacts_on_depart`).
+**Règle :** quand `actif` passe à `false`, `partager_contacts` est forcé à `false` automatiquement (trigger `sync_partager_contacts_on_depart`). Si ce membre existait aussi comme contact dans la base, passer son contact en `is_digi_employee = true` pour l'exclure de la prospection.
 
 ---
 
@@ -162,7 +162,7 @@ Colonnes principales :
 
 ### Contacts réservés (`contact_digi = true`)
 
-Le champ `contact_digi` marque un contact comme **réservé** — il reste visible dans l'app mais n'est pas un prospect actionnable (ex : collaborateur Digilityx, contact exclu de la prospection).
+Le champ `contact_digi` marque un contact comme **réservé** — contacts ciblés avant la création de l'app DigiLeads, exclus de la prospection active mais toujours visibles dans l'app.
 
 **Règles de visibilité par rôle :**
 
@@ -182,6 +182,29 @@ Le champ `contact_digi` marque un contact comme **réservé** — il reste visib
 **Règle d'import :** ne jamais écraser `contact_digi` sur un contact existant lors d'un import.
 
 **Nom de colonne :** `contact_digi` (interne) — le label UI est "Réservé". Pas besoin de renommer la colonne, les RPCs et triggers utilisent `contact_digi`.
+
+---
+
+### Contacts devenus collaborateurs Digilityx (`is_digi_employee = true`)
+
+Le champ `is_digi_employee` marque un contact qui a rejoint Digilityx — il ne doit plus apparaître dans les listes de prospection.
+
+**Différence avec `contact_digi` :**
+- `contact_digi = true` → réservé (ciblé avant DigiLeads, visible avec badge)
+- `is_digi_employee = true` → chez Digi (invisible partout, aucun badge)
+
+**Comportement :** entièrement exclu de toutes les vues et RPCs. Pas de badge, pas de toggle. Le contact disparaît simplement des listes.
+
+**RPCs mises à jour** (`AND NOT c.is_digi_employee`) : `get_contacts_for_membre`, `count_contacts_for_membre`, `get_owner_a_contacter_contacts`, `get_membre_tier1_unqualified_count`.
+
+**Vue admin :** filtre `.eq('is_digi_employee', false)` appliqué systématiquement — même les admins ne les voient pas dans `/contacts`.
+
+**Pour marquer un contact :** ouvrir le drawer (admin) → cocher "Ce contact est maintenant chez Digilityx", ou via SQL :
+```sql
+UPDATE contacts SET is_digi_employee = true WHERE id = '<uuid>';
+```
+
+**Règle d'import :** ne jamais écraser `is_digi_employee` sur un contact existant lors d'un import.
 
 ---
 
@@ -287,6 +310,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `contact_counts_for_entreprises(ids)` | Nb de contacts agrégé par `entreprise_id` |
 | `get_dashboard_stats()` | 9 compteurs pour le dashboard en un seul appel |
 | `get_secteur_stats()` | Nb d'entreprises par secteur |
+| `get_owner_a_contacter_contacts(p_owner_id)` | Contacts d'un owner triés par statut (SECURITY DEFINER — contourne RLS). Retourne : id, first_name, last_name, position, company_name, scoring, tier (depuis entreprises), entreprise_id, niveau_de_relation (depuis contacts_membres_relations), account_manager_name, account_manager_slack_user_id, statut_contact. Ordre : À contacter en premier, puis par scoring DESC. Exclut masque=true et contact_digi=true. |
 
 ---
 
@@ -294,7 +318,16 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 
 Une seule Edge Function déployée : **`send-slack-notification`**
 
-Envoie une notification Slack quand un contact atteint un score suffisant.
+Prend `{ slack_user_id, message }` dans le body et envoie un DM Slack à l'utilisateur.
+
+**Deux systèmes de relance distincts depuis `/membres` (admin) :**
+
+| Système | Déclencheur | Champ de traçabilité | Envoi |
+|---------|-------------|----------------------|-------|
+| Relance "qualifier" | Vue Tier ou Vue Membre Digi | `last_slack_nudge_at` (24h, bloque le bouton) | Automatique via Edge Function |
+| Relance "À contacter" | Contacts par Owner → colonne "À contacter" | `last_relance_contact_at` (date de marquage) | **Manuel** — l'admin copie le message et l'envoie lui-même sur Slack |
+
+Les deux champs sont **indépendants** : marquer un contact comme relancé ne bloque pas la relance de qualification, et inversement.
 
 Les autres fonctions prévues initialement (qualify-with-llm, process-phantombuster, sync-google-sheets) **ne sont pas encore implémentées**.
 
@@ -307,7 +340,7 @@ Les autres fonctions prévues initialement (qualify-with-llm, process-phantombus
 | `/` | admin | Dashboard — KPIs globaux |
 | `/entreprises` | tous | Liste filtrée par tier, statut, secteur, AM |
 | `/contacts` | tous | Liste avec scoring, statut, qualification |
-| `/membres` | admin | Stats par membre, gestion du réseau |
+| `/membres` | admin | Stats par membre, gestion du réseau — 4 onglets : Contacts par Owner, Entreprises par AM, Vue Tier, Vue Membre Digi |
 | `/notifications` | admin | Centre de notifications Slack |
 | `/import` | admin | Upload xlsx/csv Phantombuster, enrichissement |
 
@@ -368,18 +401,19 @@ npx supabase secrets set SLACK_BOT_TOKEN=xoxb-...
 ### Schéma complet de `membres_digilityx` (après migrations)
 
 ```sql
-id                  UUID PRIMARY KEY (généré automatiquement — ne jamais modifier)
-first_name          TEXT NOT NULL
-last_name           TEXT NOT NULL
-full_name           TEXT GENERATED (first_name || ' ' || last_name)
-email               TEXT
-auth_user_id        UUID  -- lié à auth.users.id de Supabase Auth
-role                TEXT  -- 'admin' | 'account_manager' | 'membre'
-actif               BOOLEAN DEFAULT true
-partager_contacts   BOOLEAN DEFAULT true
-slack_user_id       TEXT   -- identifiant Slack format U... (ex: U017Z701THU)
-last_slack_nudge_at TIMESTAMPTZ  -- dernière relance Slack envoyée à ce membre
-created_at          TIMESTAMPTZ
+id                       UUID PRIMARY KEY (généré automatiquement — ne jamais modifier)
+first_name               TEXT NOT NULL
+last_name                TEXT NOT NULL
+full_name                TEXT GENERATED (first_name || ' ' || last_name)
+email                    TEXT
+auth_user_id             UUID  -- lié à auth.users.id de Supabase Auth
+role                     TEXT  -- 'admin' | 'account_manager' | 'membre'
+actif                    BOOLEAN DEFAULT true
+partager_contacts        BOOLEAN DEFAULT true
+slack_user_id            TEXT   -- identifiant Slack format U... (ex: U017Z701THU)
+last_slack_nudge_at      TIMESTAMPTZ  -- dernière relance Slack "qualifier tes contacts" (Vue Tier / Vue Membre Digi)
+last_relance_contact_at  TIMESTAMPTZ  -- dernière relance Slack "À contacter" par contact spécifique (Contacts par Owner)
+created_at               TIMESTAMPTZ
 ```
 
 ### Règles importantes
@@ -410,7 +444,11 @@ niveau_de_relation  TEXT  -- 'Ami', 'Cercle familial', 'Ancien collègue', 'Alum
 Le `niveau_de_relation` est **par membre** — un même contact peut avoir une relation différente selon chaque membre Digi.
 
 ### Champ `masque` sur `contacts`
-Un contact est masqué (`masque = true`) quand **toutes** ses relations membres ont `partager_contacts = false`. Il redevient visible dès qu'un membre actif partageant le pointe.
+Un contact est masqué (`masque = true`) dans deux cas :
+
+**1. Automatiquement (via trigger) :** toutes ses relations membres ont `partager_contacts = false`. Il redevient visible dès qu'un membre actif partageant le pointe. Triggers responsables : `recompute_contact_masque` (sur `contacts_membres_relations`) et `trg_membre_partager_recompute_masque` (sur `membres_digilityx`).
+
+**2. Manuellement lors d'une fusion de doublons :** le contact doublon éliminé est passé à `masque = true` directement par le script (`merge-from-xlsx.mjs`), après transfert de toutes ses relations vers le contact keeper et suppression de ses propres relations. Ce contact reste en base mais n'est plus jamais affiché.
 
 ### Règles de déduplication contacts
 
@@ -469,6 +507,35 @@ Un contact est masqué (`masque = true`) quand **toutes** ses relations membres 
 | `find-tier1-sans-relation-dans-xlsx.mjs` | Trouve les contacts Tier 1 sans relation membre dans les xlsx existants. |
 | `map-industry-to-secteur.mjs` | Mappe les industries LinkedIn vers `secteur_digi`. |
 | `verify-classification.mjs` | Vérifie la cohérence des classifications en base vs les règles du script. |
+
+---
+
+## 📊 Page `/membres` — détail des onglets (admin)
+
+### Onglet "Contacts par Owner"
+Tableau des membres Digi triés par nombre de contacts dans leur réseau. Colonnes : Membre, Total contacts (réseau complet), Dont owner (contacts dont ils sont owner), puis une colonne par statut contact (À contacter, Contacté, Intéressé, Pas intéressé, Client).
+
+**Toggle "À contacter uniquement"** (défaut ON) : filtre pour n'afficher que les membres ayant au moins un contact "À contacter".
+
+**Dépliage par membre** : cliquer sur un membre ayant des contacts "À contacter" charge via RPC `get_owner_a_contacter_contacts` et affiche les contacts en sous-lignes alignées sur les colonnes de statut. Chaque contact affiche : nom (lien vers /contacts), poste · entreprise + badges relation/tier/score sur la 1re ligne, AM sur la 2e ligne. Dans la colonne "À contacter", un bouton **Relancer** ouvre la modale de prévisualisation.
+
+**Modale prévisualisation** :
+- Barre de variables visuelles (Owner, Contact, Poste, Entreprise, Relation, AM) pour voir en un coup d'œil ce qui a été injecté dans le message
+- Textarea éditable avec le message personnalisé pré-rempli
+- Bouton **Copier** (presse-papiers) pour copier le texte et l'envoyer manuellement sur Slack
+- Bouton **Marquer comme relancé** : enregistre la date dans `last_relance_contact_at` en base, ferme la modale, et affiche "✓ Relancé · il y a Xh" sur la ligne du contact (session uniquement — se remet à zéro au rechargement)
+- **Pas d'envoi automatique** : l'admin envoie le message lui-même sur Slack en mettant owner et AM en copie
+
+### Onglet "Entreprises par AM"
+Tableau des membres Digi en tant qu'Account Manager. Colonnes : Membre, Total entreprises, puis une colonne par statut entreprise.
+
+### Onglet "Vue Tier"
+Tableau par membre avec répartition Tier 1 / Tier 2 / Tier 3 / Hors-Tier / Sans tier + colonne "À qualifier T1" (contacts Tier 1 sans niveau de relation). Bouton **Relancer** par ligne (si slack_user_id présent, non bloqué 24h via `last_slack_nudge_at`) → envoi direct sans modale. Bouton global "Relancer les N" en haut → envoie à tous les membres éligibles en une fois.
+
+**Toggle "À qualifier T1 uniquement"** : filtre les membres n'ayant aucun contact Tier 1 à qualifier.
+
+### Onglet "Vue Membre Digi"
+Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre sélectionné avec leurs détails. Bouton Slack individuel → relance "qualifier" (même règle `last_slack_nudge_at` 24h).
 
 ---
 

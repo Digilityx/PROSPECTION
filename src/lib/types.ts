@@ -161,6 +161,7 @@ export interface Contact {
   persona: Persona | null
   hierarchie: Hierarchie | null
   contact_digi: boolean
+  is_digi_employee: boolean
   statut_contact: StatutContact | null
   /** CACHED — maintained by trigger from contacts_membres_relations */
   niveau_de_relation: NiveauRelation | null

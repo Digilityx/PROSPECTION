@@ -13,6 +13,8 @@ import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
 import { ContactDrawer } from '@/components/contacts/ContactDrawer'
+import { EntrepriseDrawer } from '@/components/entreprises/EntrepriseDrawer'
+import type { Entreprise } from '@/lib/types'
 import { scoreContact } from '@/lib/scoring/score-contact'
 import { useAuth, isAdmin } from '@/lib/auth'
 import { NIVEAU_RELATION_DESCRIPTIONS, type Hierarchie, type Persona, type NiveauRelation } from '@/lib/types'
@@ -54,6 +56,7 @@ interface ContactRow {
   scoring: number
   nb_personnes_digi_relation: number
   contact_digi: boolean
+  is_digi_employee: boolean
   entreprise_id: string | null
   owner_membre_id: string | null
   entreprises: { tier: string | null } | { tier: string | null }[] | null
@@ -110,6 +113,7 @@ export default function Contacts() {
   const [scoreAsc, setScoreAsc] = useState(false)
   const [unqualifiedFirst, setUnqualifiedFirst] = useState(!userIsAdmin)
   const [selected, setSelected] = useState<ContactRow | null>(null)
+  const [selectedEntreprise, setSelectedEntreprise] = useState<Entreprise | null>(null)
   const [relationOverrides, setRelationOverrides] = useState<Record<string, string>>({})
   const [onlyMine, setOnlyMine] = useState(false)
   const [hideReserved, setHideReserved] = useState(false)
@@ -135,7 +139,7 @@ export default function Contacts() {
     if (!contactParam) return
     supabase
       .from('contacts')
-      .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, entreprise_id, owner_membre_id, entreprises(tier)')
+      .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, entreprises(tier)')
       .eq('id', contactParam)
       .single()
       .then(({ data }) => {
@@ -170,8 +174,9 @@ export default function Contacts() {
       const joinType = tierFilter !== 'all' ? 'entreprises!inner(tier)' : 'entreprises(tier)'
       let query = supabase
         .from('contacts')
-        .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, entreprise_id, owner_membre_id, ${joinType}`)
+        .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, ${joinType}`)
         .eq('masque', false)
+        .eq('is_digi_employee', false)
         .order('scoring', { ascending: scoreAsc })
 
       if (hideReserved) query = query.eq('contact_digi', false)
@@ -232,6 +237,7 @@ export default function Contacts() {
         .from('contacts')
         .select(selectClause, { count: 'exact', head: !needsTierJoin })
         .eq('masque', false)
+        .eq('is_digi_employee', false)
 
       if (hideReserved) query = query.eq('contact_digi', false)
 
@@ -260,8 +266,9 @@ export default function Contacts() {
       if (!restrictToMembreId || hideReserved) return { data: [], error: null }
       const { data, error } = await supabase
         .from('contacts')
-        .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, entreprise_id, owner_membre_id, contacts_membres_relations!inner(membre_id)')
+        .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, contacts_membres_relations!inner(membre_id)')
         .eq('contact_digi', true)
+        .eq('is_digi_employee', false)
         .eq('masque', false)
         .eq('contacts_membres_relations.membre_id', restrictToMembreId)
       return { data: (data ?? []) as unknown as ContactRow[], error }
@@ -732,6 +739,19 @@ export default function Contacts() {
         onClose={() => setSelected(null)}
         onSaved={() => { setSelected(null); refetch() }}
         isAdmin={userIsAdmin}
+        onOpenEntreprise={async (entrepriseId) => {
+          const { data } = await supabase
+            .from('entreprises')
+            .select('*')
+            .eq('id', entrepriseId)
+            .single()
+          if (data) setSelectedEntreprise(data as Entreprise)
+        }}
+      />
+      <EntrepriseDrawer
+        entreprise={selectedEntreprise}
+        onClose={() => setSelectedEntreprise(null)}
+        onSaved={() => setSelectedEntreprise(null)}
       />
     </div>
   )
