@@ -423,24 +423,9 @@ export default function Contacts() {
           />
         </div>
 
-        <Select value={statutFilter} onValueChange={(v) => { setStatutFilter(v as string); setPage(0) }}>
-          <SelectTrigger className={statutFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{statutFilter === 'all' ? 'Tout statut' : statutFilter}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tout statut</SelectItem>
-            <SelectItem value="Sélectionné">Sélectionné</SelectItem>
-            <SelectItem value="À contacter">À contacter</SelectItem>
-            <SelectItem value="Contacté">Contacté</SelectItem>
-            <SelectItem value="Intéressé">Intéressé</SelectItem>
-            <SelectItem value="Pas intéressé">Pas intéressé</SelectItem>
-            <SelectItem value="Client">Client</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={tierFilter} onValueChange={(v) => { setTierFilter(v as string); setPage(0) }}>
           <SelectTrigger className={tierFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{tierFilter === 'all' ? 'Tout tier' : tierFilter}</SelectValue>
+            <SelectValue>{tierFilter === 'all' ? 'Tier' : tierFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tout tier</SelectItem>
@@ -454,7 +439,7 @@ export default function Contacts() {
         {scoped && (
           <Select value={relationFilter} onValueChange={(v) => { setRelationFilter(v as string); setPage(0) }}>
             <SelectTrigger className={relationFilter !== 'all' ? activeClass : ''}>
-              <SelectValue>{relationFilter === 'all' ? 'Toute relation' : relationFilter}</SelectValue>
+              <SelectValue>{relationFilter === 'all' ? 'Relation' : relationFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false} collisionAvoidance={{ side: 'none' }} className="min-w-[320px]">
               <SelectItem value="all">Toute relation</SelectItem>
@@ -498,34 +483,6 @@ export default function Contacts() {
           </Button>
         )}
 
-        {userIsAdmin && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => { setOnlyMine(v => !v); setPage(0) }}
-            className={onlyMine ? activeClass : ''}
-            title={onlyMine ? 'Voir tous les contacts' : 'Voir uniquement mes contacts'}
-          >
-            <Users className="h-4 w-4" />
-            Mes contacts
-          </Button>
-        )}
-
-        {!scoped && (
-          <Select value={historiqueFilter} onValueChange={(v) => { setHistoriqueFilter(v ?? 'all'); setPage(0) }}>
-            <SelectTrigger className={historiqueFilter !== 'all' ? activeClass : ''}>
-              <SelectValue>{historiqueFilter === 'all' ? 'Historique relationnel' : historiqueFilter}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous</SelectItem>
-              {['Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours', 'A recontacter N+1', 'En attente de retour', 'Ancien client Digi'].map(h => (
-                <SelectItem key={h} value={h}>{h}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
         {userIsAdmin && !scoped && membresList.length > 0 && (
           <Select value={ownerFilter} onValueChange={(v) => { setOwnerFilter(v as string); setPage(0) }}>
             <SelectTrigger className={ownerFilter !== 'all' ? activeClass : ''}>
@@ -554,17 +511,59 @@ export default function Contacts() {
           </Select>
         )}
 
-        {hasActiveFilters && (
+        <Select value={statutFilter} onValueChange={(v) => { setStatutFilter(v as string); setPage(0) }}>
+          <SelectTrigger className={statutFilter !== 'all' ? activeClass : ''}>
+            <SelectValue>{statutFilter === 'all' ? 'Statut' : statutFilter}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tout statut</SelectItem>
+            <SelectItem value="Sélectionné">Sélectionné</SelectItem>
+            <SelectItem value="À contacter">À contacter</SelectItem>
+            <SelectItem value="Contacté">Contacté</SelectItem>
+            <SelectItem value="Intéressé">Intéressé</SelectItem>
+            <SelectItem value="Pas intéressé">Pas intéressé</SelectItem>
+            <SelectItem value="Client">Client</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {!scoped && (
+          <Select value={historiqueFilter} onValueChange={(v) => { setHistoriqueFilter(v ?? 'all'); setPage(0) }}>
+            <SelectTrigger className={historiqueFilter !== 'all' ? activeClass : ''}>
+              <SelectValue>{historiqueFilter === 'all' ? 'Historique relationnel' : historiqueFilter}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              {['Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours', 'A recontacter N+1', 'En attente de retour', 'Ancien client Digi'].map(h => (
+                <SelectItem key={h} value={h}>{h}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {userIsAdmin && (
           <Button
-            variant="ghost"
+            type="button"
+            variant="outline"
             size="sm"
-            onClick={clearAllFilters}
-            className="text-muted-foreground hover:text-foreground"
+            onClick={() => { setOnlyMine(v => !v); setPage(0) }}
+            className={onlyMine ? activeClass : ''}
+            title={onlyMine ? 'Voir tous les contacts' : 'Voir uniquement mes contacts'}
           >
-            <FilterX className="h-4 w-4 mr-1.5" />
-            Effacer
+            <Users className="h-4 w-4" />
+            Mes contacts
           </Button>
         )}
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAllFilters}
+          disabled={!hasActiveFilters}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <FilterX className="h-4 w-4 mr-1.5" />
+          Effacer
+        </Button>
       </div>
 
       {loading ? (

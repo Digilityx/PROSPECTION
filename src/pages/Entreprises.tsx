@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select'
 import { EntrepriseDrawer } from '@/components/entreprises/EntrepriseDrawer'
 import { useAuth, isAdmin } from '@/lib/auth'
-import type { Entreprise, Tier, StatutEntreprise } from '@/lib/types'
+import type { Entreprise, Tier } from '@/lib/types'
 
 type EntrepriseWithParent = Entreprise & {
   parent: { id: string; company_name: string } | null
@@ -32,12 +32,6 @@ const TIER_STYLES: Record<string, string> = {
   'Hors-Tier': 'bg-muted text-muted-foreground',
 }
 
-const STATUT_STYLES: Record<string, string> = {
-  'À démarcher': 'bg-muted text-muted-foreground',
-  'Activement démarché': 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
-  'Deal en cours': 'bg-green-500/15 text-green-700 dark:text-green-300',
-  'Devenu client Digileads': 'bg-[#050d2b] text-white',
-}
 
 function TierBadge({ tier }: { tier: Tier | null }) {
   if (!tier) return <span className="text-xs text-muted-foreground">—</span>
@@ -48,14 +42,6 @@ function TierBadge({ tier }: { tier: Tier | null }) {
   )
 }
 
-function StatutBadge({ statut }: { statut: StatutEntreprise | null }) {
-  if (!statut) return <span className="text-xs text-muted-foreground">—</span>
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUT_STYLES[statut] ?? 'bg-muted text-muted-foreground'}`}>
-      {statut}
-    </span>
-  )
-}
 
 const SECTEURS = [
   'Pharma/Santé', 'BAF', 'Éducation & Formation', 'Tourisme, Hôtellerie & Loisirs',
@@ -91,6 +77,8 @@ function SecteurMultiSelect({ values, onChange, activeClass }: {
       ? displayLabel(values[0])
       : `${values.length} secteurs`
 
+  const displayedLabel = values.length === 0 ? 'Secteurs' : label
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -98,7 +86,7 @@ function SecteurMultiSelect({ values, onChange, activeClass }: {
         onClick={() => setOpen(o => !o)}
         className={`inline-flex items-center gap-1.5 h-8 rounded-lg border border-input bg-transparent px-3 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${values.length > 0 ? activeClass : ''}`}
       >
-        {label}
+        {displayedLabel}
         <ChevronDown className="h-3.5 w-3.5 opacity-50" />
       </button>
       {open && (
@@ -327,7 +315,7 @@ export default function Entreprises() {
 
         <Select value={tierFilter} onValueChange={(v) => { setTierFilter(v as string); setPage(0) }}>
           <SelectTrigger className={tierFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{tierFilter === 'all' ? 'Tous les tiers' : tierFilter}</SelectValue>
+            <SelectValue>{tierFilter === 'all' ? 'Tier' : tierFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les tiers</SelectItem>
@@ -347,7 +335,7 @@ export default function Entreprises() {
 
         <Select value={amFilter} onValueChange={(v) => { setAmFilter(v as string); setPage(0) }} onOpenChange={(open) => { if (open) ensureAmList() }}>
           <SelectTrigger className={amFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{amFilter === 'all' ? 'Tout AM' : amList?.find(m => m.id === amFilter)?.full_name ?? amFilter}</SelectValue>
+            <SelectValue>{amFilter === 'all' ? 'Account Manager' : amList?.find(m => m.id === amFilter)?.full_name ?? amFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tout AM</SelectItem>
@@ -357,17 +345,16 @@ export default function Entreprises() {
           </SelectContent>
         </Select>
 
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearAllFilters}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <FilterX className="h-4 w-4 mr-1.5" />
-            Effacer
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAllFilters}
+          disabled={!hasActiveFilters}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <FilterX className="h-4 w-4 mr-1.5" />
+          Effacer
+        </Button>
 
         <Button
           variant="outline"
@@ -385,21 +372,20 @@ export default function Entreprises() {
           <Table className="table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[20%]">Entreprise</TableHead>
-                <TableHead className="w-[13%]">Localisation</TableHead>
-                <TableHead className="w-[8%]">Taille</TableHead>
-                <TableHead className="w-[12%]">Secteur</TableHead>
-                <TableHead className="w-[7%]">Tier</TableHead>
-                <TableHead className="w-[10%]">Statut</TableHead>
-                <TableHead className="w-[10%]">AM</TableHead>
-                <TableHead className="w-[6%]">ICP</TableHead>
-                <TableHead className="w-[7%]"></TableHead>
+                <TableHead className="w-[22%]">Entreprise</TableHead>
+                <TableHead className="w-[14%]">Localisation</TableHead>
+                <TableHead className="w-[9%]">Taille</TableHead>
+                <TableHead className="w-[14%]">Secteur</TableHead>
+                <TableHead className="w-[8%]">Tier</TableHead>
+                <TableHead className="w-[12%]">AM</TableHead>
+                <TableHead className="w-[7%]">ICP</TableHead>
+                <TableHead className="w-[8%]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {Array.from({ length: 10 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 9 }).map((_, j) => (
+                  {Array.from({ length: 8 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-muted rounded animate-pulse" />
                     </TableCell>
@@ -423,15 +409,14 @@ export default function Entreprises() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[20%]">Entreprise</TableHead>
-                  <TableHead className="w-[13%]">Localisation</TableHead>
-                  <TableHead className="w-[8%]">Taille</TableHead>
-                  <TableHead className="w-[12%]">Secteur</TableHead>
-                  <TableHead className="w-[7%]">Tier</TableHead>
-                  <TableHead className="w-[10%]">Statut</TableHead>
-                  <TableHead className="w-[10%]">AM</TableHead>
-                  <TableHead className="w-[6%]">ICP</TableHead>
-                  <TableHead className="w-[7%]"></TableHead>
+                  <TableHead className="w-[22%]">Entreprise</TableHead>
+                  <TableHead className="w-[14%]">Localisation</TableHead>
+                  <TableHead className="w-[9%]">Taille</TableHead>
+                  <TableHead className="w-[14%]">Secteur</TableHead>
+                  <TableHead className="w-[8%]">Tier</TableHead>
+                  <TableHead className="w-[12%]">AM</TableHead>
+                  <TableHead className="w-[7%]">ICP</TableHead>
+                  <TableHead className="w-[8%]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -494,7 +479,6 @@ export default function Entreprises() {
                       )}
                     </TableCell>
                     <TableCell><TierBadge tier={e.tier} /></TableCell>
-                    <TableCell><StatutBadge statut={e.statut_entreprise} /></TableCell>
                     <TableCell className="text-sm text-muted-foreground truncate max-w-[120px]">
                       {e.account_manager?.full_name ?? '—'}
                     </TableCell>
