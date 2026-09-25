@@ -238,13 +238,6 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
             <p className="text-xs text-muted-foreground italic">Calculé automatiquement depuis Typology + Secteur</p>
           </div>
 
-          <FieldGroup label="Statut">
-            <span className="text-sm text-muted-foreground">{statut ?? '—'}</span>
-          </FieldGroup>
-
-          <FieldGroup label="Statut DIGI">
-            <span className="text-sm text-muted-foreground">{statutDigi ?? '—'}</span>
-          </FieldGroup>
         </div>
 
         <div className="space-y-4">
