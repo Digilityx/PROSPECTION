@@ -30,6 +30,8 @@ type MemberItem = {
   last_slack_nudge_at: string | null
 }
 
+const APP_URL = 'https://prospection-blond-theta.vercel.app'
+
 const STATUTS_ENTREPRISE = [
   'À démarcher', 'Activement démarché', 'Deal en cours', 'Devenu client Digileads',
 ]
@@ -553,7 +555,7 @@ export default function Membres() {
                           onClick={async () => {
                             setSendingSlack(true)
                             try {
-                              const appUrl = window.location.origin + '/membres'
+                              const appUrl = APP_URL + '/membres'
                               await supabase.functions.invoke('send-slack-notification', {
                                 body: {
                                   slack_user_id: membre.slack_user_id,
@@ -693,7 +695,7 @@ export default function Membres() {
                       if (!window.confirm(`Envoyer une relance Slack à ${eligible.length} membre${eligible.length > 1 ? 's' : ''} ?`)) return
                       setBulkSending(true)
                       setBulkProgress({ done: 0, total: eligible.length })
-                      const appUrl = window.location.origin + '/membres'
+                      const appUrl = APP_URL + '/membres'
                       for (let i = 0; i < eligible.length; i++) {
                         const m = eligible[i]
                         const info = allMembres.find(a => a.id === m.id)!
@@ -815,7 +817,7 @@ export default function Membres() {
                                     onClick={async () => {
                                       setTierSlackState(prev => ({ ...prev, [m.id]: 'sending' }))
                                       try {
-                                        const appUrl = window.location.origin + '/membres'
+                                        const appUrl = APP_URL + '/membres'
                                         await supabase.functions.invoke('send-slack-notification', {
                                           body: {
                                             slack_user_id: membreInfo.slack_user_id,
