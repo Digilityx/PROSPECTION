@@ -119,7 +119,7 @@ Colonnes principales :
 | `created_at` / `updated_at` | TIMESTAMPTZ | |
 
 **16 secteurs `secteur_digi` :**
-Pharma/Santé, BAF, Éducation & Formation, Tourisme Hôtellerie & Loisirs, Technologie & IT, Prestations aux entreprises, Media & Communication, Recrutement, Commerce de Détail, Luxe, Services aux Consommateurs, Industrie & Énergie, Transports & Logistique, Immobilier & Construction, Public & Administrations, Concurrent
+Pharma/Santé, BAF, Éducation & Formation, Tourisme, Hôtellerie & Loisirs, Technologie & IT, Prestations aux entreprises, Media & Communication, Recrutement, Commerce de Détail, Luxe, Services aux Consommateurs, Industrie & Énergie, Transports & Logistique, Immobilier & Construction, Public & Administrations, Concurrent
 
 ---
 
@@ -150,7 +150,7 @@ Colonnes principales :
 | `hierarchie` | TEXT | `COMEX` \| `Directeur` \| `Manager` \| `Opérationnel` \| `Stagiaire/Alternant` |
 | `contact_digi` | BOOLEAN | **Contact réservé** — piloté automatiquement par `historique_relationnel` : `true` si `historique_relationnel = 'Réservé'`, `false` sinon. Plus de case à cocher manuelle. |
 | `statut_contact` | TEXT | `Sélectionné` \| `À contacter` \| `Contacté` \| `Intéressé` \| `Pas intéressé` \| `Client à date` \| `Client Digileads` — chaque changement est loggué automatiquement dans `qualification_logs` |
-| `historique_relationnel` | TEXT | `Jamais contacté` \| `Réservé` \| `Deal en cours` \| `Mission en cours` \| `A recontacter N+1` \| `En attente de retour` \| `Ancien client Digi` — qualifié manuellement dans le drawer. Sélectionner "Réservé" met automatiquement `contact_digi = true`. |
+| `historique_relationnel` | TEXT | `Jamais contacté` \| `Réservé` \| `Deal en cours` \| `Mission en cours` \| `A recontacter N+1` \| `En attente de retour` \| `Ancien client Digi` \| `Contact non pertinent` \| `A quitté l'entreprise` \| `A changé de poste` — qualifié manuellement dans le drawer. Sélectionner "Réservé" met automatiquement `contact_digi = true`. |
 | `last_message_sent_at` | TIMESTAMPTZ | Date du dernier "Message à envoyer" marqué comme envoyé pour ce contact (depuis la vue Contacts par Owner). |
 | `niveau_de_relation` | TEXT | Valeur cache — maintenue par trigger depuis `contacts_membres_relations` |
 | `scoring` | INTEGER | Calculé automatiquement par trigger (max 100) |
@@ -578,7 +578,7 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 
 **Badges colorés :**
 - `statut_contact` : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy
-- `historique_relationnel` : Réservé=ambre, Deal/Mission en cours=ambre, A recontacter N+1=orange, En attente de retour=bleu, Ancien client Digi=violet, Jamais contacté=gris
+- `historique_relationnel` : Réservé=ambre, Deal/Mission en cours=ambre, A recontacter N+1=orange, En attente de retour=bleu, Ancien client Digi=violet, Jamais contacté=gris, Contact non pertinent=gris, A quitté l'entreprise=gris, A changé de poste=bleu ciel
 
 **Filtres disponibles :** Tier, Statut contact, Historique relationnel, Owner, Account Manager. Bouton "Effacer" si filtre actif.
 
