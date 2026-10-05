@@ -327,6 +327,20 @@ export default function Entreprises() {
         </Select>
 
 
+        <Select value={statutFilter} onValueChange={(v) => { setStatutFilter(v ?? 'all'); setPage(0) }}>
+          <SelectTrigger className={statutFilter !== 'all' ? activeClass : ''}>
+            <SelectValue>{statutFilter === 'all' ? 'Statut' : statutFilter}</SelectValue>
+          </SelectTrigger>
+          <SelectContent className="min-w-[200px]">
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="À démarcher">À démarcher</SelectItem>
+            <SelectItem value="Activement démarché">Activement démarché</SelectItem>
+            <SelectItem value="Deal en cours">Deal en cours</SelectItem>
+            <SelectItem value="Devenu client Digileads">Devenu client Digileads</SelectItem>
+            <SelectItem value="Hors cible">Hors cible</SelectItem>
+          </SelectContent>
+        </Select>
+
         <SecteurMultiSelect
           values={secteurFilter}
           onChange={(v) => { setSecteurFilter(v); setPage(0) }}

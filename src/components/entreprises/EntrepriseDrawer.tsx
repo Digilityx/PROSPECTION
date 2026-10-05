@@ -10,6 +10,7 @@ import type {
 } from '@/lib/types'
 
 const TYPOLOGIES: CompanyTypology[] = ['Grand Groupe', 'ETI', 'PME', 'TPE', 'Startup']
+const STATUTS_ENTREPRISE = ['À démarcher', 'Activement démarché', 'Deal en cours', 'Devenu client Digileads', 'Hors cible']
 const SECTEURS: SecteurDigi[] = [
   'Pharma/Santé', 'BAF', 'Éducation & Formation', 'Tourisme, Hôtellerie & Loisirs',
   'Technologie & IT', 'Prestations aux entreprises', 'Media & Communication', 'Recrutement',
@@ -120,7 +121,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
   async function handleSave() {
     if (!entreprise) return
     setSaving(true)
-    await supabase
+    const { error } = await supabase
       .from('entreprises')
       .update({
         company_typology: typology || null,
@@ -137,6 +138,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
       })
       .eq('id', entreprise.id)
     setSaving(false)
+    if (error) { console.error('Save error:', error.message); return }
     onSaved()
   }
 
@@ -200,6 +202,15 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
               value={typology}
               onChange={setTypology}
               options={TYPOLOGIES.map(t => ({ value: t, label: t }))}
+              placeholder="— Non renseigné —"
+            />
+          </FieldGroup>
+
+          <FieldGroup label="Statut commercial">
+            <SelectField
+              value={statut}
+              onChange={setStatut}
+              options={STATUTS_ENTREPRISE.map(s => ({ value: s, label: s }))}
               placeholder="— Non renseigné —"
             />
           </FieldGroup>

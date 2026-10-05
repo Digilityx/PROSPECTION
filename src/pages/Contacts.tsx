@@ -83,7 +83,7 @@ interface ContactRow {
   historique_relationnel: string | null
   entreprise_id: string | null
   owner_membre_id: string | null
-  entreprises: { tier: string | null } | { tier: string | null }[] | null
+  entreprises: { tier: string | null; statut_entreprise: string | null } | { tier: string | null; statut_entreprise: string | null }[] | null
 }
 
 const PAGE_SIZE = 50
@@ -175,7 +175,7 @@ export default function Contacts() {
     if (!contactParam) return
     supabase
       .from('contacts')
-      .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, historique_relationnel, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, entreprises(tier)')
+      .select('id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, historique_relationnel, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, entreprises(tier, statut_entreprise)')
       .eq('id', contactParam)
       .single()
       .then(({ data }) => {
@@ -230,7 +230,7 @@ export default function Contacts() {
       }
 
       const needsEntrepriseJoin = tierFilter !== 'all' || amFilter !== 'all'
-      const joinType = needsEntrepriseJoin ? 'entreprises!inner(tier, account_manager_id)' : 'entreprises(tier)'
+      const joinType = needsEntrepriseJoin ? 'entreprises!inner(tier, account_manager_id, statut_entreprise)' : 'entreprises(tier, statut_entreprise)'
       let query = supabase
         .from('contacts')
         .select(`id, first_name, last_name, position, company_name, location, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, historique_relationnel, niveau_de_relation, scoring, nb_personnes_digi_relation, contact_digi, is_digi_employee, entreprise_id, owner_membre_id, ${joinType}`)
@@ -672,6 +672,12 @@ export default function Contacts() {
                             </Link>
                           )}
                         </div>
+                        {(() => {
+                          const ent = c.entreprises
+                          const statut = ent ? (Array.isArray(ent) ? ent[0]?.statut_entreprise : ent.statut_entreprise) : null
+                          if (statut !== 'Hors cible') return null
+                          return <Badge className="text-[10px] px-1.5 py-0 mt-0.5 bg-red-100 text-red-700">Hors cible</Badge>
+                        })()}
                       </TableCell>
                       <TableCell>
                         {c.statut_contact ? (

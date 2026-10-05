@@ -5,6 +5,7 @@ export type StatutEntreprise =
   | 'Activement démarché'
   | 'Deal en cours'
   | 'Devenu client Digileads'
+  | 'Hors cible'
 
 export type StatutDigi =
   | 'Client Digi - pas de mission'
