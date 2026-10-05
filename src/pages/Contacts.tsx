@@ -37,6 +37,9 @@ const HISTORIQUE_RELATIONNEL_CLASS: Record<string, string> = {
   'A recontacter N+1':  'bg-orange-100 text-orange-800',
   'En attente de retour': 'bg-blue-100 text-blue-800',
   'Ancien client Digi': 'bg-violet-100 text-violet-800',
+  'Contact non pertinent': 'bg-gray-100 text-gray-500',
+  'A quitté l\'entreprise': 'bg-gray-100 text-gray-500',
+  'A changé de poste': 'bg-sky-100 text-sky-700',
 }
 
 const RELATION_GLOSSARY = (Object.entries(NIVEAU_RELATION_DESCRIPTIONS) as [NiveauRelation, string][])
@@ -533,7 +536,7 @@ export default function Contacts() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tous</SelectItem>
-              {['Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours', 'A recontacter N+1', 'En attente de retour', 'Ancien client Digi'].map(h => (
+              {['Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours', 'A recontacter N+1', 'En attente de retour', 'Ancien client Digi', 'Contact non pertinent', 'A quitté l\'entreprise', 'A changé de poste'].map(h => (
                 <SelectItem key={h} value={h}>{h}</SelectItem>
               ))}
             </SelectContent>

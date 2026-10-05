@@ -25,6 +25,7 @@ const NIVEAUX_RELATION: NiveauRelation[] = [
 const HISTORIQUES_RELATIONNELS: HistoriqueRelationnel[] = [
   'Jamais contacté', 'Réservé', 'Deal en cours', 'Mission en cours',
   'A recontacter N+1', 'En attente de retour', 'Ancien client Digi',
+  'Contact non pertinent', 'A quitté l\'entreprise', 'A changé de poste',
 ]
 
 interface ContactRow {

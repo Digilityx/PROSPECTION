@@ -40,6 +40,9 @@ export type HistoriqueRelationnel =
   | 'A recontacter N+1'
   | 'En attente de retour'
   | 'Ancien client Digi'
+  | 'Contact non pertinent'
+  | 'A quitté l\'entreprise'
+  | 'A changé de poste'
 
 export type NiveauRelation =
   | 'Ami'
