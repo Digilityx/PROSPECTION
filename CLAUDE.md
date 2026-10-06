@@ -539,6 +539,49 @@ Un contact est masqué (`masque = true`) dans deux cas :
 | `map-industry-to-secteur.mjs` | Mappe les industries LinkedIn vers `secteur_digi`. |
 | `verify-classification.mjs` | Vérifie la cohérence des classifications en base vs les règles du script. |
 
+### Diagnostic dérive `entreprise_id` (à relancer après import massif)
+
+Les scrapes Phantombuster mettent à jour `company_id_linkedin` sur le contact (nouveau poste) mais peuvent laisser `entreprise_id` pointer sur l'ancienne boîte. Requête de détection :
+
+```sql
+-- Contacts avec entreprise_id stale (vrais changements de boîte uniquement)
+SELECT COUNT(*) AS nb_a_corriger
+FROM contacts c
+JOIN entreprises e_correct ON e_correct.company_id_linkedin = c.company_id_linkedin
+JOIN entreprises e_current ON e_current.id = c.entreprise_id
+WHERE c.company_id_linkedin IS NOT NULL
+  AND c.entreprise_id != e_correct.id
+  AND LOWER(REGEXP_REPLACE(e_correct.company_name, '[^a-zA-Z0-9]', '', 'g')) !=
+      LOWER(REGEXP_REPLACE(e_current.company_name, '[^a-zA-Z0-9]', '', 'g'));
+```
+
+Si > 0, appliquer le bulk fix (contacts puis CMR) :
+
+```sql
+-- Fix contacts
+UPDATE contacts c
+SET entreprise_id = e_correct.id
+FROM entreprises e_correct
+JOIN entreprises e_current ON e_current.id = c.entreprise_id
+WHERE e_correct.company_id_linkedin = c.company_id_linkedin
+  AND c.entreprise_id != e_correct.id
+  AND c.company_id_linkedin IS NOT NULL
+  AND LOWER(REGEXP_REPLACE(e_correct.company_name, '[^a-zA-Z0-9]', '', 'g')) !=
+      LOWER(REGEXP_REPLACE(e_current.company_name, '[^a-zA-Z0-9]', '', 'g'));
+
+-- Fix CMR
+UPDATE contacts_membres_relations cmr
+SET entreprise_id = e_correct.id, company_name = e_correct.company_name
+FROM contacts c
+JOIN entreprises e_correct ON e_correct.company_id_linkedin = c.company_id_linkedin
+JOIN entreprises e_current ON e_current.id = c.entreprise_id
+WHERE cmr.contact_id = c.id
+  AND c.entreprise_id != e_correct.id
+  AND c.company_id_linkedin IS NOT NULL
+  AND LOWER(REGEXP_REPLACE(e_correct.company_name, '[^a-zA-Z0-9]', '', 'g')) !=
+      LOWER(REGEXP_REPLACE(e_current.company_name, '[^a-zA-Z0-9]', '', 'g'));
+```
+
 ---
 
 ## 📊 Page `/membres` — détail des onglets (admin)
