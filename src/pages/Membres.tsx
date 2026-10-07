@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Loader2, Users, Building2, UserCircle, ChevronDown, Check, Download, Layers, Copy } from 'lucide-react'
+import { Loader2, Users, UserCircle, ChevronDown, Check, Download, Layers, Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -31,10 +31,6 @@ type MemberItem = {
 }
 
 const APP_URL = 'https://prospection-blond-theta.vercel.app'
-
-const STATUTS_ENTREPRISE = [
-  'À démarcher', 'Activement démarché', 'Deal en cours', 'Devenu client Digileads',
-]
 
 const STATUTS_CONTACT = [
   'Sélectionné', 'À contacter', 'Contacté', 'Intéressé', 'Pas intéressé', 'Client à date', 'Client Digileads',
@@ -205,7 +201,7 @@ Je vous laisse me dire quand ${contactFirst} aura été contacté et quelle aura
 Merci à tous les 2 pour votre aide 🙏`
 }
 
-type Tab = 'owner' | 'account_manager' | 'tier' | 'membre_digi'
+type Tab = 'owner' | 'tier' | 'membre_digi'
 
 export default function Membres() {
   const queryClient = useQueryClient()
@@ -277,37 +273,6 @@ export default function Membres() {
     enabled: allMembres.length > 0,
   })
 
-  // AM stats
-  const { data: amStats = [], isLoading: loadingAM } = useQuery<MembreStats[]>({
-    queryKey: ['membres-am-stats'],
-    queryFn: async () => {
-      const { data: rpcData } = await supabase.rpc('get_am_entreprise_stats')
-
-      const lookup = new Map<string, Record<string, number>>()
-      for (const row of (rpcData ?? []) as { account_manager_id: string; statut_entreprise: string | null; cnt: number }[]) {
-        if (!lookup.has(row.account_manager_id)) lookup.set(row.account_manager_id, {})
-        lookup.get(row.account_manager_id)![row.statut_entreprise ?? '(vide)'] = Number(row.cnt)
-      }
-
-      const stats: MembreStats[] = allMembres.map(m => {
-        const counts = lookup.get(m.id) ?? {}
-        const byStatut: Record<string, number> = {}
-        let total = 0
-        for (const s of STATUTS_ENTREPRISE) {
-          byStatut[s] = counts[s] ?? 0
-          total += byStatut[s]
-        }
-        for (const [k, v] of Object.entries(counts)) {
-          if (!STATUTS_ENTREPRISE.includes(k)) total += v
-        }
-        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0 }
-      })
-
-      return stats.sort((a, b) => b.total - a.total)
-    },
-    enabled: allMembres.length > 0,
-  })
-
   // Tier stats
   const { data: tierStats = [], isLoading: loadingTier } = useQuery<MembreStats[]>({
     queryKey: ['membres-tier-stats'],
@@ -367,16 +332,13 @@ export default function Membres() {
   const totalMembreContacts = membreContactsData?.total ?? null
 
   const isLoading = tab === 'owner' ? loadingOwner
-    : tab === 'account_manager' ? loadingAM
     : tab === 'tier' ? loadingTier
     : false
   const stats = tab === 'owner' ? ownerStats
-    : tab === 'account_manager' ? amStats
     : tierStats
   const statuts = tab === 'owner' ? STATUTS_CONTACT
-    : tab === 'account_manager' ? STATUTS_ENTREPRISE
     : TIERS
-  const label = tab === 'account_manager' ? 'entreprises' : 'contacts'
+  const label = 'contacts'
 
   return (
     <>
@@ -400,17 +362,6 @@ export default function Membres() {
         >
           <Users className="h-4 w-4" />
           Contacts par Owner
-        </button>
-        <button
-          onClick={() => setTab('account_manager')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'account_manager'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Building2 className="h-4 w-4" />
-          Entreprises par AM
         </button>
         <button
           onClick={() => setTab('tier')}
