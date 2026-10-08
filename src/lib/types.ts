@@ -1,17 +1,6 @@
-export type Tier = 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Hors-Tier'
+export type Tier = 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Hors-Tier' | 'Hors cible'
 
-export type StatutEntreprise =
-  | 'À démarcher'
-  | 'Activement démarché'
-  | 'Deal en cours'
-  | 'Devenu client Digileads'
-  | 'Hors cible'
-
-export type StatutDigi =
-  | 'Client Digi - pas de mission'
-  | 'Client Digi - mission en cours'
-  | 'Pas client Digi'
-  | 'Client Digileads'
+export type StatutEntreprise = 'Devenu client Digileads'
 
 export type Persona =
   | 'Dirigeant'
@@ -138,10 +127,9 @@ export interface Entreprise {
   company_website_from_linkedin: string | null
   company_description: string | null
   company_specialties: string | null
+  hors_cible: boolean
   tier: Tier | null
   statut_entreprise: StatutEntreprise | null
-  statut_digi: StatutDigi | null
-  is_digi_client: boolean
   source_acquisition: string | null
   created_at: string
   updated_at: string

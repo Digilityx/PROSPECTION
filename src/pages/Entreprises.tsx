@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Building2, Search, Loader2, ChevronLeft, ChevronRight, ExternalLink, Users, FilterX, Download, ChevronDown, Check } from 'lucide-react'
+import { Building2, Search, Loader2, ChevronLeft, ChevronRight, ExternalLink, Users, FilterX, Download, ChevronDown, Check, Zap } from 'lucide-react'
 import * as XLSX from 'xlsx'
-import { DigiIcon } from '@/components/icons/DigiIcon'
 import { supabase } from '@/lib/supabase'
 import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
@@ -30,6 +29,7 @@ const TIER_STYLES: Record<string, string> = {
   'Tier 2': 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
   'Tier 3': 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   'Hors-Tier': 'bg-muted text-muted-foreground',
+  'Hors cible': 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
 }
 
 
@@ -131,7 +131,6 @@ export default function Entreprises() {
     const param = searchParams.get('secteur')
     return param ? param.split(',') : []
   })
-  const [clientFilter, setClientFilter] = useState<string>('all')
   const [amFilter, setAmFilter] = useState<string>('all')
   const [selected, setSelected] = useState<Entreprise | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -152,14 +151,13 @@ export default function Entreprises() {
     if (amFilter !== 'all') ensureAmList()
   }, [amFilter])
 
-  const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || clientFilter !== 'all' || amFilter !== 'all' || search.trim() !== ''
+  const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || amFilter !== 'all' || search.trim() !== ''
   const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
 
   function clearAllFilters() {
     setTierFilter('all')
     setStatutFilter('all')
     setSecteurFilter([])
-    setClientFilter('all')
     setAmFilter('all')
     setSearch('')
     setPage(0)
@@ -182,7 +180,6 @@ export default function Entreprises() {
         q = q.in('secteur_digi', realSecteurs)
       }
     }
-    if (clientFilter !== 'all') q = q.eq('statut_digi', clientFilter)
     if (amFilter !== 'all') q = q.eq('account_manager_id', amFilter)
     if (debouncedSearch.trim()) q = q.ilike('company_name', `%${debouncedSearch.trim()}%`)
     return q
@@ -192,7 +189,7 @@ export default function Entreprises() {
     p_membre_id: restrictToMembreId!,
     p_tier: tierFilter === 'all' ? null : tierFilter,
     p_statut_entreprise: statutFilter === 'all' ? null : statutFilter,
-    p_statut_digi: clientFilter === 'all' ? null : clientFilter,
+    p_statut_digi: null,
     p_secteurs: secteurFilter.length === 0 ? null : secteurFilter.filter(s => s !== '__null__'),
     p_include_null_secteur: secteurFilter.includes('__null__'),
     p_account_manager_id: amFilter === 'all' ? null : amFilter,
@@ -213,7 +210,7 @@ export default function Entreprises() {
         } else {
           const res = await applyFilters(
             supabase.from('entreprises')
-              .select('company_name, company_domain, company_location, company_employee_range, company_typology, secteur_digi, tier, statut_entreprise, statut_digi, icp, scoring_icp')
+              .select('company_name, company_domain, company_location, company_employee_range, company_typology, secteur_digi, tier, hors_cible, statut_entreprise, statut_digi, icp, scoring_icp')
               .order('company_name', { ascending: true })
           ).range(offset, offset + BATCH - 1)
           data = res.data as Record<string, unknown>[] | null
@@ -263,11 +260,11 @@ export default function Entreprises() {
       }
       return applyFilters(
         supabase.from('entreprises').select(
-          'id, company_name, company_domain, company_id_linkedin, company_employee_count, company_employee_range, company_location, company_typology, secteur_digi, linkedin_industry, tier, statut_entreprise, statut_digi, icp, scoring_icp, justification, is_digi_client, is_subsidiary, is_parent_entity, account_manager_id, parent_company_id, source_acquisition, parent:parent_company_id(id, company_name), account_manager:account_manager_id(id, full_name)'
+          'id, company_name, company_domain, company_id_linkedin, company_employee_count, company_employee_range, company_location, company_typology, secteur_digi, linkedin_industry, tier, hors_cible, statut_entreprise, icp, scoring_icp, justification, is_subsidiary, is_parent_entity, account_manager_id, parent_company_id, source_acquisition, parent:parent_company_id(id, company_name), account_manager:account_manager_id(id, full_name)'
         ).order('company_name', { ascending: true })
       ).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     },
-    [page, tierFilter, statutFilter, secteurFilter, clientFilter, amFilter, debouncedSearch, restrictToMembreId]
+    [page, tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId]
   )
 
   const { data: countResult } = useSupabaseQuery<{ count: number }[]>(
@@ -281,12 +278,12 @@ export default function Entreprises() {
       )
       return { data: [{ count: res.count ?? 0 }], error: res.error }
     },
-    [tierFilter, statutFilter, secteurFilter, clientFilter, amFilter, debouncedSearch, restrictToMembreId]
+    [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId]
   )
 
   const totalCount = countResult?.[0]?.count ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
-  const hasFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || clientFilter !== 'all' || search.trim() !== ''
+  const hasFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || search.trim() !== ''
 
   return (
     <div className="space-y-4">
@@ -323,23 +320,21 @@ export default function Entreprises() {
             <SelectItem value="Tier 2">Tier 2</SelectItem>
             <SelectItem value="Tier 3">Tier 3</SelectItem>
             <SelectItem value="Hors-Tier">Hors-Tier</SelectItem>
-          </SelectContent>
-        </Select>
-
-
-        <Select value={statutFilter} onValueChange={(v) => { setStatutFilter(v ?? 'all'); setPage(0) }}>
-          <SelectTrigger className={statutFilter !== 'all' ? activeClass : ''}>
-            <SelectValue>{statutFilter === 'all' ? 'Statut' : statutFilter}</SelectValue>
-          </SelectTrigger>
-          <SelectContent className="min-w-[200px]">
-            <SelectItem value="all">Tous les statuts</SelectItem>
-            <SelectItem value="À démarcher">À démarcher</SelectItem>
-            <SelectItem value="Activement démarché">Activement démarché</SelectItem>
-            <SelectItem value="Deal en cours">Deal en cours</SelectItem>
-            <SelectItem value="Devenu client Digileads">Devenu client Digileads</SelectItem>
             <SelectItem value="Hors cible">Hors cible</SelectItem>
           </SelectContent>
         </Select>
+
+
+        <button
+          onClick={() => { setStatutFilter(statutFilter === 'Devenu client Digileads' ? 'all' : 'Devenu client Digileads'); setPage(0) }}
+          className={`h-8 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            statutFilter === 'Devenu client Digileads'
+              ? activeClass
+              : 'border-input text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Client Digileads
+        </button>
 
         <SecteurMultiSelect
           values={secteurFilter}
@@ -443,8 +438,8 @@ export default function Entreprises() {
                     <TableCell className="max-w-[250px]">
                       <div className="flex items-center gap-2">
                         <span className="font-medium truncate">{e.company_name}</span>
-                        {e.is_digi_client && (
-                          <span title="Client Digi"><DigiIcon className="h-4 w-4 shrink-0" /></span>
+                        {e.statut_entreprise === 'Devenu client Digileads' && (
+                          <span title="Client Digileads"><Zap className="h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500" /></span>
                         )}
                         {e.company_id_linkedin && (
                           <a

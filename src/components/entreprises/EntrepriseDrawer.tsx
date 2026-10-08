@@ -10,7 +10,6 @@ import type {
 } from '@/lib/types'
 
 const TYPOLOGIES: CompanyTypology[] = ['Grand Groupe', 'ETI', 'PME', 'TPE', 'Startup']
-const STATUTS_ENTREPRISE = ['À démarcher', 'Activement démarché', 'Deal en cours', 'Devenu client Digileads', 'Hors cible']
 const SECTEURS: SecteurDigi[] = [
   'Pharma/Santé', 'BAF', 'Éducation & Formation', 'Tourisme, Hôtellerie & Loisirs',
   'Technologie & IT', 'Prestations aux entreprises', 'Media & Communication', 'Recrutement',
@@ -29,15 +28,15 @@ interface Props {
 
 export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
   const [typology, setTypology] = useState<string | null>(null)
-  const [statut, setStatut] = useState<string | null>(null)
   const [secteur, setSecteur] = useState<string | null>(null)
   const [accountManager, setAccountManager] = useState<string | null>(null)
   const [parentCompanyId, setParentCompanyId] = useState<string | null>(null)
   const [parentCompanyName, setParentCompanyName] = useState<string | null>(null)
   const [isParentEntity, setIsParentEntity] = useState(false)
-  const [statutDigi, setStatutDigi] = useState<string | null>(null)
   const [sourceAcquisition, setSourceAcquisition] = useState<string | null>(null)
+  const [horsCible, setHorsCible] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Search parent company
   const [parentSearch, setParentSearch] = useState('')
@@ -85,13 +84,12 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
   useEffect(() => {
     if (entreprise) {
       setTypology(entreprise.company_typology)
-      setStatut(entreprise.statut_entreprise)
-      setStatutDigi(entreprise.statut_digi)
       setSecteur(entreprise.secteur_digi)
       setAccountManager(entreprise.account_manager_id)
       setParentCompanyId(entreprise.parent_company_id)
       setIsParentEntity(entreprise.is_parent_entity)
       setSourceAcquisition(entreprise.source_acquisition)
+      setHorsCible(entreprise.hors_cible ?? false)
       setParentSearch('')
       setParentCompanyName(null)
       // Fetch parent name if exists
@@ -110,26 +108,23 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
 
   const hasChanges =
     typology !== entreprise.company_typology ||
-    statut !== entreprise.statut_entreprise ||
-    statutDigi !== entreprise.statut_digi ||
     secteur !== entreprise.secteur_digi ||
     accountManager !== entreprise.account_manager_id ||
     parentCompanyId !== entreprise.parent_company_id ||
     isParentEntity !== entreprise.is_parent_entity ||
-    sourceAcquisition !== entreprise.source_acquisition
+    sourceAcquisition !== entreprise.source_acquisition ||
+    horsCible !== (entreprise.hors_cible ?? false)
 
   async function handleSave() {
     if (!entreprise) return
     setSaving(true)
+    setSaveError(null)
     const { error } = await supabase
       .from('entreprises')
       .update({
         company_typology: typology || null,
-        tier: computed.tier,
-        icp: computed.icp === 'Oui',
+        hors_cible: horsCible,
         secteur_digi: secteur || null,
-        statut_entreprise: statut || null,
-        statut_digi: statutDigi || null,
         account_manager_id: accountManager || null,
         parent_company_id: parentCompanyId || null,
         is_subsidiary: !!parentCompanyId,
@@ -138,7 +133,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
       })
       .eq('id', entreprise.id)
     setSaving(false)
-    if (error) { console.error('Save error:', error.message); return }
+    if (error) { setSaveError(error.message); return }
     onSaved()
   }
 
@@ -150,14 +145,19 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
       onClose={onClose}
       title={entreprise.company_name}
       footer={
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges || saving}
-          className="w-full"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          Enregistrer
-        </Button>
+        <div className="space-y-2">
+          {saveError && (
+            <p className="text-xs text-red-600 dark:text-red-400 text-center">{saveError}</p>
+          )}
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges || saving}
+            className="w-full"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            Enregistrer
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
@@ -206,15 +206,6 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
             />
           </FieldGroup>
 
-          <FieldGroup label="Statut commercial">
-            <SelectField
-              value={statut}
-              onChange={setStatut}
-              options={STATUTS_ENTREPRISE.map(s => ({ value: s, label: s }))}
-              placeholder="— Non renseigné —"
-            />
-          </FieldGroup>
-
           <FieldGroup label="Secteur Digi">
             <SelectField
               value={secteur}
@@ -223,31 +214,51 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
             />
           </FieldGroup>
 
-          {/* Auto-computed ICP + Tier */}
+          {/* ICP + Tier */}
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">ICP</span>
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                computed.icp === 'Oui'
-                  ? 'bg-green-500/15 text-green-700 dark:text-green-300'
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {computed.icp}
-              </span>
-            </div>
+            {!horsCible && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">ICP</span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  computed.icp === 'Oui'
+                    ? 'bg-green-500/15 text-green-700 dark:text-green-300'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {computed.icp}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Tier</span>
               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                horsCible ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300' :
                 computed.tier === 'Tier 1' ? 'bg-[#050d2b] text-white' :
                 computed.tier === 'Tier 2' ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300' :
                 computed.tier === 'Tier 3' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' :
                 'bg-muted text-muted-foreground'
               }`}>
-                {computed.tier}
+                {horsCible ? 'Hors cible' : computed.tier}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground italic">Calculé automatiquement depuis Typology + Secteur</p>
+            {!horsCible && (
+              <p className="text-xs text-muted-foreground italic">Calculé automatiquement depuis Typology + Secteur</p>
+            )}
           </div>
+
+          <FieldGroup label="Hors cible">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={horsCible}
+                onChange={e => setHorsCible(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-[#050d2b]"
+              />
+              <span className="text-sm">Marquer cette entreprise comme hors cible</span>
+            </label>
+            {horsCible && (
+              <p className="mt-1 text-xs text-muted-foreground italic">Le tier automatique est ignoré tant que cette case est cochée.</p>
+            )}
+          </FieldGroup>
 
         </div>
 

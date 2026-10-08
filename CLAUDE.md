@@ -1,4 +1,4 @@
-# CLAUDE.md — DigiLeads (état au 23/09/2026)
+# CLAUDE.md — DigiLeads (état au 07/10/2026)
 
 ## Vue d'ensemble
 
@@ -102,8 +102,9 @@ Colonnes principales :
 | `secteur_digi` | TEXT | Voir liste des 16 secteurs ci-dessous |
 | `linkedin_industry` | TEXT | Secteur brut LinkedIn |
 | `icp` | BOOLEAN | Calculé automatiquement par trigger |
-| `tier` | TEXT | `Tier 1` \| `Tier 2` \| `Tier 3` \| `Hors-Tier` — calculé par trigger |
-| `statut_entreprise` | TEXT | `À démarcher` \| `Activement démarché` \| `Deal en cours` \| `Devenu client Digileads` |
+| `hors_cible` | BOOLEAN | `false` par défaut — si `true`, le tier est forcé à `'Hors cible'` et le calcul automatique est ignoré |
+| `tier` | TEXT | `Tier 1` \| `Tier 2` \| `Tier 3` \| `Hors-Tier` — calculé par trigger ; `Hors cible` — positionné manuellement via `hors_cible = true` |
+| `statut_entreprise` | TEXT | `À démarcher` \| `Activement démarché` \| `Deal en cours` \| `Devenu client Digileads` \| `Hors cible` |
 | `statut_digi` | TEXT | `Client Digi - pas de mission` \| `Client Digi - mission en cours` \| `Pas client Digi` \| `Client Digileads` |
 | `is_digi_client` | BOOLEAN | Calculé automatiquement depuis `statut_digi` |
 | `owner` | UUID → `membres_digilityx.id` | Propriétaire de l'entreprise |
@@ -261,11 +262,14 @@ Relation many-to-many entre contacts et membres.
 
 | Condition | Tier | ICP |
 |-----------|------|-----|
+| `hors_cible = true` (positionné manuellement) | **Hors cible** | Non |
 | `company_typology` NULL, TPE ou Startup | Hors-Tier | Non |
 | `secteur_digi = 'Concurrent'` | Hors-Tier | Non |
 | Typologie éligible × secteur NULL | Tier 3 | Non spécifié |
 | Secteur = Pharma/Santé ou BAF | **Tier 1** | Oui |
 | Autres secteurs ICP | **Tier 2** | Oui |
+
+**Règle "Hors cible" :** le flag `hors_cible` prend la priorité absolue sur le calcul automatique. Il est positionné manuellement depuis le drawer entreprise (checkbox). Un changement de secteur ou de typology ne l'efface pas — seul un décoché manuel le remet à `false`. Le trigger surveille désormais `company_typology`, `secteur_digi` **et** `hors_cible`.
 
 **Dérivation de la typologie depuis l'effectif :**
 - ≥ 5000 → Grand Groupe
@@ -317,7 +321,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 
 | Fonction | Déclencheur | Rôle |
 |----------|-------------|------|
-| `compute_entreprise_tier_icp` | BEFORE INSERT/UPDATE `company_typology`, `secteur_digi` sur `entreprises` | Calcule `tier` et `icp` |
+| `compute_entreprise_tier_icp` | BEFORE INSERT/UPDATE `company_typology`, `secteur_digi`, `hors_cible` sur `entreprises` | Calcule `tier` et `icp` — court-circuite si `hors_cible = true` |
 | `auto_assign_account_manager` | BEFORE INSERT/UPDATE `secteur_digi`, `company_typology`, `is_placeholder` sur `entreprises` | Affecte un AM selon les règles sectorielles |
 | `sync_is_digi_client` | BEFORE INSERT/UPDATE `statut_digi` sur `entreprises` | Synchronise `is_digi_client` |
 | `compute_contact_scoring` | BEFORE INSERT/UPDATE `hierarchie`, `persona`, `niveau_de_relation`, `nb_personnes_digi_relation` sur `contacts` | Calcule le scoring |
@@ -371,7 +375,7 @@ Les autres fonctions prévues initialement (qualify-with-llm, process-phantombus
 | `/` | admin | Dashboard — KPIs globaux |
 | `/entreprises` | tous | Liste filtrée par tier, statut, secteur, AM |
 | `/contacts` | tous | Liste avec scoring, statut, qualification |
-| `/membres` | admin | Stats par membre, gestion du réseau — 4 onglets : Contacts par Owner, Entreprises par AM, Vue Tier, Vue Membre Digi |
+| `/membres` | admin | Stats par membre, gestion du réseau — 3 onglets : Contacts par Owner, Vue Tier, Vue Membre Digi |
 | `/notifications` | admin | Centre de notifications Slack |
 | `/import` | admin | Upload xlsx/csv Phantombuster, enrichissement |
 
@@ -602,11 +606,8 @@ Tableau des membres Digi triés par nombre de contacts dont ils sont owner. Colo
 - Bouton **Marquer comme envoyé** : enregistre la date dans `last_message_sent_at` sur le contact ET dans `last_relance_contact_at` sur le membre, ferme la modale, et affiche "✓ Message envoyé · il y a Xh" sur la ligne du contact (persistant — lu depuis `contacts.last_message_sent_at`)
 - **Pas d'envoi automatique** : l'admin envoie le message lui-même sur Slack en mettant owner et AM en copie
 
-### Onglet "Entreprises par AM"
-Tableau des membres Digi en tant qu'Account Manager. Colonnes : Membre, Total entreprises, puis une colonne par statut entreprise.
-
 ### Onglet "Vue Tier"
-Tableau par membre avec répartition Tier 1 / Tier 2 / Tier 3 / Hors-Tier / Sans tier + colonne "À qualifier T1" (contacts Tier 1 sans niveau de relation). Bouton **Relancer** par ligne (si slack_user_id présent, non bloqué 24h via `last_slack_nudge_at`) → envoi direct sans modale. Bouton global "Relancer les N" en haut → envoie à tous les membres éligibles en une fois.
+Tableau par membre avec répartition Tier 1 / Tier 2 / Tier 3 / Hors-Tier / Hors cible / Sans tier + colonne "À qualifier T1" (contacts Tier 1 sans niveau de relation). Bouton **Relancer** par ligne (si slack_user_id présent, non bloqué 24h via `last_slack_nudge_at`) → envoi direct sans modale. Bouton global "Relancer les N" en haut → envoie à tous les membres éligibles en une fois.
 
 **Toggle "À qualifier T1 uniquement"** : filtre les membres n'ayant aucun contact Tier 1 à qualifier.
 
@@ -629,9 +630,9 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 
 ## 🏢 Page `/entreprises` — détail
 
-**Filtres disponibles :** Tier, Secteur (multi-select), Account Manager. Les filtres "Statut commercial" et "Statut Digi" ont été retirés.
+**Filtres disponibles :** Tier (inclut "Hors cible"), Secteur (multi-select), Account Manager. Les filtres "Statut commercial" et "Statut Digi" ont été retirés.
 
-**Fiche entreprise (drawer) :** Les champs "Statut" (statut_entreprise) et "Statut DIGI" (statut_digi) sont affichés en lecture seule — non modifiables depuis l'UI.
+**Fiche entreprise (drawer) :** Les champs "Statut" (statut_entreprise) et "Statut DIGI" (statut_digi) sont affichés en lecture seule — non modifiables depuis l'UI. Le tier est également en lecture seule (calculé automatiquement), mais une **checkbox "Marquer comme hors cible"** permet de forcer le tier à `Hors cible` indépendamment du calcul (passe `hors_cible = true` en base).
 
 ---
 
@@ -639,5 +640,5 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 
 - Avant toute implémentation complexe (nouveau schéma, Edge Function, nouvelle logique de scoring), passer en mode Plan et attendre validation
 - Toute modification des règles AM → nouvelle migration SQL dans `supabase/migrations/` avec timestamp `YYYYMMDDHHMMSS_description.sql`
-- Le trigger `compute_entreprise_tier_icp` et la fonction `computeTier` dans `src/lib/scoring/compute-tier.ts` doivent rester synchronisés
+- Le trigger `compute_entreprise_tier_icp` et la fonction `computeTier` dans `src/lib/scoring/compute-tier.ts` doivent rester synchronisés — **exception : le cas `hors_cible = true` est géré uniquement par le trigger (pas dans computeTier) car c'est un override manuel côté DB**
 - Le trigger `compute_contact_scoring` et la fonction `scoreContact` dans `src/lib/scoring/score-contact.ts` doivent rester synchronisés

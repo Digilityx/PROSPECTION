@@ -46,7 +46,7 @@ const STATUT_CONTACT_CLASS: Record<string, string> = {
   'Client Digileads': 'bg-[#050d2b] text-white',
 }
 
-const TIERS = ['Tier 1', 'Tier 2', 'Tier 3', 'Hors-Tier', 'Sans tier']
+const TIERS = ['Tier 1', 'Tier 2', 'Tier 3', 'Hors-Tier', 'Hors cible', 'Sans tier']
 
 interface MembreContact {
   id: string
