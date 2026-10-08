@@ -53,31 +53,61 @@ const searchArg = cliArgs.find(a => a.startsWith('--search='))?.split('=').slice
 // ── 1. Récupérer tous les contacts (ou filtrer par nom) ───────────────
 console.log('🔍 Chargement des contacts...')
 
-let query = supabase
-  .from('contacts')
-  .select('id, first_name, last_name, full_name, position, company_name, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, contact_digi, entreprise_id, owner_membre_id, created_at')
-  .eq('masque', false)
-  .order('created_at', { ascending: true })
+// En mode --linkedin-id-only : charger uniquement les id_url_linkedin en doublon,
+// puis fetch seulement ces contacts (évite de paginer toute la base)
+let allContacts = []
 
-if (searchArg) {
-  const parts = searchArg.trim().split(/\s+/)
-  if (parts.length >= 2) {
-    query = query.ilike('first_name', `%${parts[0]}%`).ilike('last_name', `%${parts.slice(1).join(' ')}%`)
-  } else {
-    query = query.or(`first_name.ilike.%${searchArg}%,last_name.ilike.%${searchArg}%`)
+if (linkedinIdOnly && !searchArg) {
+  // 1. Trouver les id_url_linkedin qui apparaissent plus d'une fois
+  const { data: dupeIds, error: dupeErr } = await supabase.rpc('find_duplicate_linkedin_ids')
+  if (dupeErr) {
+    // Fallback : fetch paginé filtré si la RPC n'existe pas
+    console.log('  (RPC find_duplicate_linkedin_ids absente, fallback paginé)')
+  }
+
+  if (dupeIds && dupeIds.length > 0) {
+    const ids = dupeIds.map(r => r.id_url_linkedin)
+    console.log(`  ${ids.length} id_url_linkedin en doublon trouvés`)
+    // 2. Charger uniquement ces contacts
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id, first_name, last_name, full_name, position, company_name, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, contact_digi, entreprise_id, owner_membre_id, created_at')
+      .eq('masque', false)
+      .in('id_url_linkedin', ids)
+      .order('created_at', { ascending: true })
+    if (error) { console.error('❌ Erreur fetch contacts:', error.message); process.exit(1) }
+    allContacts = data ?? []
   }
 }
 
-// Paginer pour récupérer tous les contacts
-const allContacts = []
-let page = 0
-while (true) {
-  const { data, error } = await query.range(page * 1000, (page + 1) * 1000 - 1)
-  if (error) { console.error('❌ Erreur fetch contacts:', error.message); process.exit(1) }
-  if (!data || data.length === 0) break
-  allContacts.push(...data)
-  if (data.length < 1000) break
-  page++
+if (allContacts.length === 0) {
+  // Chargement paginé standard (mode nom ou fallback)
+  let query = supabase
+    .from('contacts')
+    .select('id, first_name, last_name, full_name, position, company_name, linkedin_url, id_url_linkedin, email, persona, hierarchie, statut_contact, niveau_de_relation, scoring, contact_digi, entreprise_id, owner_membre_id, created_at')
+    .eq('masque', false)
+    .order('created_at', { ascending: true })
+
+  if (linkedinIdOnly) query = query.not('id_url_linkedin', 'is', null)
+
+  if (searchArg) {
+    const parts = searchArg.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      query = query.ilike('first_name', `%${parts[0]}%`).ilike('last_name', `%${parts.slice(1).join(' ')}%`)
+    } else {
+      query = query.or(`first_name.ilike.%${searchArg}%,last_name.ilike.%${searchArg}%`)
+    }
+  }
+
+  let page = 0
+  while (true) {
+    const { data, error } = await query.range(page * 1000, (page + 1) * 1000 - 1)
+    if (error) { console.error('❌ Erreur fetch contacts:', error.message); process.exit(1) }
+    if (!data || data.length === 0) break
+    allContacts.push(...data)
+    if (data.length < 1000) break
+    page++
+  }
 }
 
 console.log(`  ${allContacts.length} contacts chargés\n`)

@@ -522,6 +522,37 @@ Un contact est masqué (`masque = true`) dans deux cas :
 
 > ⚠️ Toujours lancer avec `--dry-run` d'abord pour vérifier le résumé avant d'appliquer.
 
+### Routine obligatoire après chaque import
+
+À faire dans cet ordre après tout import de contacts (Pronto, LinkedIn natif, ou scraping mensuel) :
+
+```bash
+# 1. Classifier persona + hiérarchie des nouveaux contacts
+node scripts/classify-persona-hierarchie.mjs
+
+# 2. Fusionner les doublons certains (même id_url_linkedin)
+node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run
+# → vérifier le résumé, puis si OK :
+node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge
+
+# 3. Vérifier la dérive entreprise_id (si import massif)
+# → lancer la requête SQL de diagnostic ci-dessous
+```
+
+**Pourquoi c'est important :**
+- Un même contact peut arriver deux fois (export Pronto + scraping mensuel) avec des IDs différents
+- Sans l'étape 2, des doublons s'accumulent et s'affichent en double dans toutes les vues
+- `--linkedin-id-only` ne fusionne que les doublons à 100% certains (même `id_url_linkedin`) — sans risque de fausse fusion
+
+**Vérifier qu'il ne reste plus de doublons visibles après fusion :**
+```sql
+SELECT COUNT(*) FROM contacts
+WHERE id_url_linkedin IS NOT NULL AND masque = false
+GROUP BY id_url_linkedin
+HAVING COUNT(*) > 1;
+-- Doit retourner 0 ligne
+```
+
 ### Limites par format
 
 **Export LinkedIn natif** : pas de `company_id_linkedin`, pas de `company_name`, pas de `location`, pas d'`id_url_linkedin`. Les contacts arrivent sans rattachement entreprise. Attendre un export Pronto enrichi ou enrichir via Phantombuster.
