@@ -525,7 +525,8 @@ export default function Contacts() {
             <SelectItem value="Contacté">Contacté</SelectItem>
             <SelectItem value="Intéressé">Intéressé</SelectItem>
             <SelectItem value="Pas intéressé">Pas intéressé</SelectItem>
-            <SelectItem value="Client">Client</SelectItem>
+            <SelectItem value="Client à date">Client à date</SelectItem>
+            <SelectItem value="Client Digileads">Client Digileads</SelectItem>
           </SelectContent>
         </Select>
 

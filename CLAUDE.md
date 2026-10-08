@@ -344,7 +344,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `get_membre_contact_count()` | Nb de contacts par membre (actifs, partageant, non masqués) |
 | `get_membre_tier1_unqualified_count()` | Nb de contacts Tier 1 sans niveau de relation renseigné par membre |
 | `contact_counts_for_entreprises(ids)` | Nb de contacts agrégé par `entreprise_id` |
-| `get_dashboard_stats()` | 11 compteurs pour le dashboard en un seul appel : total entreprises/contacts/notifications, deals_en_cours (contacts avec `historique_relationnel = 'Deal en cours'`), contacts_a_contacter, contacts_contactes, tier1/tier2/tier3, hors_cible (entreprises `hors_cible = true`), clients_digileads (`statut_entreprise = 'Devenu client Digileads'`) |
+| `get_dashboard_stats()` | 12 compteurs pour le dashboard en un seul appel : total_entreprises, total_contacts, total_notifications, contacts_a_contacter, contacts_contactes, contacts_interesses, contacts_clients_digi, tier1/tier2/tier3, hors_cible (entreprises `hors_cible = true`), clients_digileads (`statut_entreprise = 'Devenu client Digileads'`) |
 | `get_secteur_stats()` | Nb d'entreprises par secteur |
 | `get_owner_a_contacter_contacts(p_owner_id)` | Contacts d'un owner triés par statut (SECURITY DEFINER — contourne RLS). Retourne : id, first_name, last_name, position, company_name, scoring, tier, entreprise_id, niveau_de_relation, account_manager_name, account_manager_slack_user_id, statut_contact, statut_contact_changed_at (dernière date de changement de statut depuis qualification_logs), last_message_sent_at. Ordre : À contacter en premier, puis par scoring DESC. Exclut masque=true et contact_digi=true. |
 

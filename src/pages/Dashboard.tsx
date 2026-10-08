@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Building2, Users, Target, Eye, Loader2 } from 'lucide-react'
+import { Building2, Users, Zap, Loader2 } from 'lucide-react'
 import { useDashboardStats } from '@/lib/hooks/use-supabase'
 import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
 import { supabase } from '@/lib/supabase'
@@ -102,8 +102,9 @@ export default function Dashboard() {
 
   const s = stats ?? {
     total_entreprises: 0, total_contacts: 0, total_notifications: 0,
-    deals_en_cours: 0, contacts_a_contacter: 0, contacts_contactes: 0,
+    contacts_a_contacter: 0, contacts_contactes: 0,
     tier1: 0, tier2: 0, tier3: 0, hors_cible: 0, clients_digileads: 0,
+    contacts_interesses: 0, contacts_clients_digi: 0,
   }
 
   return (
@@ -120,7 +121,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           label="Entreprises"
           value={s.total_entreprises.toLocaleString('fr-FR')}
@@ -136,18 +137,11 @@ export default function Dashboard() {
           href="/contacts"
         />
         <StatCard
-          label="À contacter"
-          value={s.contacts_a_contacter.toLocaleString('fr-FR')}
-          icon={Target}
-          description="Contacts prioritaires"
-          href="/contacts?statut=À contacter"
-        />
-        <StatCard
-          label="Contacté"
-          value={s.contacts_contactes.toLocaleString('fr-FR')}
-          icon={Eye}
-          description="Activement démarchés"
-          href="/contacts?statut=Contacté"
+          label="Entreprises Digileads"
+          value={s.clients_digileads.toLocaleString('fr-FR')}
+          icon={Zap}
+          description="Devenues clientes Digileads"
+          href="/entreprises?client_digileads=true"
         />
       </div>
 
@@ -177,18 +171,22 @@ export default function Dashboard() {
 
         <div className="rounded-xl border border-[#050d2b]/12 bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Pipeline</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <Link to="/entreprises?statut=Deal en cours" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
-              <p className="text-2xl font-bold">{s.deals_en_cours}</p>
-              <p className="text-xs text-muted-foreground mt-1">Deals en cours</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Link to="/contacts?statut=À contacter" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
+              <p className="text-2xl font-bold">{s.contacts_a_contacter.toLocaleString('fr-FR')}</p>
+              <p className="text-xs text-muted-foreground mt-1">À contacter</p>
             </Link>
-            <Link to="/entreprises?client_digileads=true" className="rounded-md bg-[#050d2b]/8 dark:bg-white/8 p-4 text-center hover:bg-[#050d2b]/12 dark:hover:bg-white/12 transition-colors">
-              <p className="text-2xl font-bold text-[#050d2b] dark:text-white">{s.clients_digileads}</p>
-              <p className="text-xs text-muted-foreground mt-1">Clients Digileads</p>
+            <Link to="/contacts?statut=Contacté" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
+              <p className="text-2xl font-bold">{s.contacts_contactes.toLocaleString('fr-FR')}</p>
+              <p className="text-xs text-muted-foreground mt-1">Contacté</p>
             </Link>
-            <Link to="/notifications" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
-              <p className="text-2xl font-bold">{s.total_notifications}</p>
-              <p className="text-xs text-muted-foreground mt-1">Notifications</p>
+            <Link to="/contacts?statut=Intéressé" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
+              <p className="text-2xl font-bold">{s.contacts_interesses.toLocaleString('fr-FR')}</p>
+              <p className="text-xs text-muted-foreground mt-1">Intéressé</p>
+            </Link>
+            <Link to="/contacts?statut=Client Digileads" className="rounded-md bg-[#050d2b]/8 dark:bg-white/8 p-4 text-center hover:bg-[#050d2b]/12 dark:hover:bg-white/12 transition-colors">
+              <p className="text-2xl font-bold text-[#050d2b] dark:text-white">{s.contacts_clients_digi.toLocaleString('fr-FR')}</p>
+              <p className="text-xs text-muted-foreground mt-1">Client Digileads</p>
             </Link>
           </div>
         </div>

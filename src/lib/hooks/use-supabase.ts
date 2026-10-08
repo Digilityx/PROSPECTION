@@ -40,7 +40,6 @@ export interface DashboardStats {
   total_entreprises: number
   total_contacts: number
   total_notifications: number
-  deals_en_cours: number
   contacts_a_contacter: number
   contacts_contactes: number
   tier1: number
@@ -48,6 +47,8 @@ export interface DashboardStats {
   tier3: number
   hors_cible: number
   clients_digileads: number
+  contacts_interesses: number
+  contacts_clients_digi: number
 }
 
 export function useDashboardStats() {
@@ -61,7 +62,6 @@ export function useDashboardStats() {
         total_entreprises: num(r.total_entreprises),
         total_contacts: num(r.total_contacts),
         total_notifications: num(r.total_notifications),
-        deals_en_cours: num(r.deals_en_cours),
         contacts_a_contacter: num(r.contacts_a_contacter),
         contacts_contactes: num(r.contacts_contactes),
         tier1: num(r.tier1),
@@ -69,6 +69,8 @@ export function useDashboardStats() {
         tier3: num(r.tier3),
         hors_cible: num(r.hors_cible),
         clients_digileads: num(r.clients_digileads),
+        contacts_interesses: num(r.contacts_interesses),
+        contacts_clients_digi: num(r.contacts_clients_digi),
       },
       error: null,
     }
