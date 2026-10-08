@@ -328,6 +328,21 @@ async function main() {
     console.log(`\n💡 Prochaine étape: lancer le Phantombuster Company Scraper`)
     console.log(`   puis: node scripts/import-phantombuster-companies.mjs --file=<résultat.csv>`)
   }
+
+  if (!dryRun) {
+    console.log(`\n${'─'.repeat(50)}`)
+    console.log(`📌 ROUTINE POST-IMPORT OBLIGATOIRE`)
+    console.log(`${'─'.repeat(50)}`)
+    console.log(`  1. Classifier persona + hiérarchie :`)
+    console.log(`     node scripts/classify-persona-hierarchie.mjs`)
+    console.log(`  2. Fusionner les doublons certains :`)
+    console.log(`     node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run`)
+    console.log(`     node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge`)
+    console.log(`  3. Mapper les nouvelles industries → secteur_digi :`)
+    console.log(`     node scripts/map-industry-to-secteur.mjs`)
+    console.log(`  4. Vérifier la dérive entreprise_id (SQL dans CLAUDE.md)`)
+    console.log(`${'─'.repeat(50)}`)
+  }
 }
 
 main().catch(console.error)

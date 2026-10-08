@@ -535,3 +535,16 @@ console.log(`  Entreprises upsertées     : ${entUpserted}`)
 console.log(`  Relations créées          : ${relInserted}`)
 console.log(`  nb_personnes recalculé    : ${nbUpdated}`)
 console.log(`${'═'.repeat(50)}`)
+
+if (!dryRun) {
+  console.log(`\n${'─'.repeat(50)}`)
+  console.log(`📌 ROUTINE POST-IMPORT OBLIGATOIRE`)
+  console.log(`${'─'.repeat(50)}`)
+  console.log(`  1. Classifier persona + hiérarchie :`)
+  console.log(`     node scripts/classify-persona-hierarchie.mjs`)
+  console.log(`  2. Fusionner les doublons certains :`)
+  console.log(`     node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run`)
+  console.log(`     node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge`)
+  console.log(`  3. Vérifier la dérive entreprise_id (SQL dans CLAUDE.md)`)
+  console.log(`${'─'.repeat(50)}`)
+}

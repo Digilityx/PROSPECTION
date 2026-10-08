@@ -524,25 +524,44 @@ Un contact est masqué (`masque = true`) dans deux cas :
 
 ### Routine obligatoire après chaque import
 
-À faire dans cet ordre après tout import de contacts (Pronto, LinkedIn natif, ou scraping mensuel) :
+Les scripts d'import affichent automatiquement le rappel en fin d'exécution. Voici le détail par type :
 
+#### Après import Pronto / Sales Navigator
 ```bash
-# 1. Classifier persona + hiérarchie des nouveaux contacts
+# 1. Classifier persona + hiérarchie
 node scripts/classify-persona-hierarchie.mjs
-
-# 2. Fusionner les doublons certains (même id_url_linkedin)
+# 2. Fusionner les doublons certains
 node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run
-# → vérifier le résumé, puis si OK :
 node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge
+# 3. Vérifier la dérive entreprise_id (SQL ci-dessous)
+```
 
-# 3. Vérifier la dérive entreprise_id (si import massif)
-# → lancer la requête SQL de diagnostic ci-dessous
+#### Après scraping mensuel Phantombuster
+```bash
+# 1. Classifier persona + hiérarchie
+node scripts/classify-persona-hierarchie.mjs
+# 2. Fusionner les doublons certains
+node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run
+node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge
+# 3. Mapper les nouvelles industries → secteur_digi
+node scripts/map-industry-to-secteur.mjs
+# 4. Vérifier la dérive entreprise_id (SQL ci-dessous)
+```
+
+#### Après import LinkedIn natif (connexions)
+```bash
+# 1. Classifier persona + hiérarchie
+node scripts/classify-persona-hierarchie.mjs
+# 2. Fusionner les doublons certains
+node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run
+node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge
+# Pas de vérif entreprise_id — ce format n'a pas de company_id_linkedin
 ```
 
 **Pourquoi c'est important :**
-- Un même contact peut arriver deux fois (export Pronto + scraping mensuel) avec des IDs différents
-- Sans l'étape 2, des doublons s'accumulent et s'affichent en double dans toutes les vues
+- Un même contact peut arriver via deux sources différentes (Pronto + scraping) → doublon avec deux IDs distincts
 - `--linkedin-id-only` ne fusionne que les doublons à 100% certains (même `id_url_linkedin`) — sans risque de fausse fusion
+- La dérive `entreprise_id` survient quand Phantombuster détecte un changement de boîte : `company_id_linkedin` est mis à jour mais `entreprise_id` peut pointer sur l'ancienne entreprise
 
 **Vérifier qu'il ne reste plus de doublons visibles après fusion :**
 ```sql

@@ -274,4 +274,15 @@ console.log(`${'═'.repeat(50)}`)
 
 if (dryRun) {
   console.log(`\n💡 Relance sans --dry-run pour appliquer les changements.`)
+} else {
+  console.log(`\n${'─'.repeat(50)}`)
+  console.log(`📌 ROUTINE POST-IMPORT OBLIGATOIRE`)
+  console.log(`${'─'.repeat(50)}`)
+  console.log(`  1. Classifier persona + hiérarchie :`)
+  console.log(`     node scripts/classify-persona-hierarchie.mjs`)
+  console.log(`  2. Fusionner les doublons certains :`)
+  console.log(`     node scripts/detect-merge-duplicates.mjs --linkedin-id-only --dry-run`)
+  console.log(`     node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge`)
+  console.log(`  (Pas de vérif entreprise_id pour ce format — pas de company_id_linkedin)`)
+  console.log(`${'─'.repeat(50)}`)
 }
