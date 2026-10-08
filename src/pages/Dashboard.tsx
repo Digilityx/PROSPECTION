@@ -108,15 +108,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div
-      className="space-y-6"
-      style={{
-        backgroundImage: [
-          'radial-gradient(ellipse 700px 500px at 100% -5%, rgba(208,48,48,0.07) 0%, transparent 70%)',
-          'radial-gradient(ellipse 600px 400px at -5% 100%, rgba(69,209,219,0.05) 0%, transparent 70%)',
-        ].join(', '),
-      }}
-    >
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
       </div>
