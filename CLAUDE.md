@@ -1,4 +1,4 @@
-# CLAUDE.md — DigiLeads (état au 07/10/2026)
+# CLAUDE.md — DigiLeads (état au 08/10/2026)
 
 ## Vue d'ensemble
 
@@ -104,9 +104,9 @@ Colonnes principales :
 | `icp` | BOOLEAN | Calculé automatiquement par trigger |
 | `hors_cible` | BOOLEAN | `false` par défaut — si `true`, le tier est forcé à `'Hors cible'` et le calcul automatique est ignoré |
 | `tier` | TEXT | `Tier 1` \| `Tier 2` \| `Tier 3` \| `Hors-Tier` — calculé par trigger ; `Hors cible` — positionné manuellement via `hors_cible = true` |
-| `statut_entreprise` | TEXT | `À démarcher` \| `Activement démarché` \| `Deal en cours` \| `Devenu client Digileads` \| `Hors cible` |
-| `statut_digi` | TEXT | `Client Digi - pas de mission` \| `Client Digi - mission en cours` \| `Pas client Digi` \| `Client Digileads` |
-| `is_digi_client` | BOOLEAN | Calculé automatiquement depuis `statut_digi` |
+| `statut_entreprise` | TEXT | `Devenu client Digileads` — positionné automatiquement par trigger quand un contact de l'entreprise passe à `statut_contact = 'Client Digileads'` ; irréversible |
+| `statut_digi` | TEXT | Colonne conservée en base (données historiques) — **plus utilisée dans le frontend** |
+| `is_digi_client` | BOOLEAN | Colonne conservée en base — **plus utilisée dans le frontend** (remplacée par `statut_entreprise`) |
 | `owner` | UUID → `membres_digilityx.id` | Propriétaire de l'entreprise |
 | `account_manager_id` | UUID → `membres_digilityx.id` | AM affecté (peut être auto-assigné) |
 | `is_placeholder` | BOOLEAN | Entreprise temporaire sans données réelles |
@@ -323,7 +323,8 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 |----------|-------------|------|
 | `compute_entreprise_tier_icp` | BEFORE INSERT/UPDATE `company_typology`, `secteur_digi`, `hors_cible` sur `entreprises` | Calcule `tier` et `icp` — court-circuite si `hors_cible = true` |
 | `auto_assign_account_manager` | BEFORE INSERT/UPDATE `secteur_digi`, `company_typology`, `is_placeholder` sur `entreprises` | Affecte un AM selon les règles sectorielles |
-| `sync_is_digi_client` | BEFORE INSERT/UPDATE `statut_digi` sur `entreprises` | Synchronise `is_digi_client` |
+| `sync_is_digi_client` | BEFORE INSERT/UPDATE `statut_digi` sur `entreprises` | Synchronise `is_digi_client` (trigger conservé en base, concept retiré du frontend) |
+| `sync_entreprise_client_digileads` (`trg_contact_client_digileads`) | AFTER UPDATE `statut_contact` sur `contacts` | Si `statut_contact → 'Client Digileads'` et `entreprise_id` renseigné → met `statut_entreprise = 'Devenu client Digileads'` sur l'entreprise + log dans `qualification_logs` (irréversible) |
 | `compute_contact_scoring` | BEFORE INSERT/UPDATE `hierarchie`, `persona`, `niveau_de_relation`, `nb_personnes_digi_relation` sur `contacts` | Calcule le scoring |
 | `sync_partager_contacts_on_depart` | BEFORE UPDATE `actif` sur `membres_digilityx` | Force `partager_contacts = false` si `actif → false` |
 | `recompute_contact_masque` | AFTER INSERT/UPDATE/DELETE sur `contacts_membres_relations` | Recalcule `masque` sur le contact |
@@ -343,7 +344,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `get_membre_contact_count()` | Nb de contacts par membre (actifs, partageant, non masqués) |
 | `get_membre_tier1_unqualified_count()` | Nb de contacts Tier 1 sans niveau de relation renseigné par membre |
 | `contact_counts_for_entreprises(ids)` | Nb de contacts agrégé par `entreprise_id` |
-| `get_dashboard_stats()` | 9 compteurs pour le dashboard en un seul appel |
+| `get_dashboard_stats()` | 11 compteurs pour le dashboard en un seul appel : total entreprises/contacts/notifications, deals_en_cours (contacts avec `historique_relationnel = 'Deal en cours'`), contacts_a_contacter, contacts_contactes, tier1/tier2/tier3, hors_cible (entreprises `hors_cible = true`), clients_digileads (`statut_entreprise = 'Devenu client Digileads'`) |
 | `get_secteur_stats()` | Nb d'entreprises par secteur |
 | `get_owner_a_contacter_contacts(p_owner_id)` | Contacts d'un owner triés par statut (SECURITY DEFINER — contourne RLS). Retourne : id, first_name, last_name, position, company_name, scoring, tier, entreprise_id, niveau_de_relation, account_manager_name, account_manager_slack_user_id, statut_contact, statut_contact_changed_at (dernière date de changement de statut depuis qualification_logs), last_message_sent_at. Ordre : À contacter en premier, puis par scoring DESC. Exclut masque=true et contact_digi=true. |
 
@@ -535,12 +536,12 @@ Un contact est masqué (`masque = true`) dans deux cas :
 |--------|-------|
 | `classify-persona-hierarchie.mjs` | Classifie automatiquement `persona` et `hierarchie` depuis le poste (Tier 1 en priorité). Lancer après chaque import. |
 | `import-niveau-relation.mjs` | Met à jour `niveau_de_relation` depuis un fichier Excel fourni par un membre. |
-| `detect-merge-duplicates.mjs` | Détecte les doublons contacts (même prénom + nom) et propose une fusion. |
+| `detect-merge-duplicates.mjs` | Détecte les doublons contacts et propose une fusion. Option `--linkedin-id-only` pour ne traiter que les doublons certains (même `id_url_linkedin`). Gère les conflits `entreprise_id` explicitement. |
 | `merge-from-xlsx.mjs` | Fusionne les doublons validés manuellement dans un xlsx. |
 | `enrich-apollo.mjs` | Enrichit les entreprises sans taille via API Apollo.io. |
 | `enrich-entreprises-enrichies.mjs` | Applique les données du fichier `ENTREPRISES_ENRICHIES.xlsx` en base. |
 | `find-tier1-sans-relation-dans-xlsx.mjs` | Trouve les contacts Tier 1 sans relation membre dans les xlsx existants. |
-| `map-industry-to-secteur.mjs` | Mappe les industries LinkedIn vers `secteur_digi`. |
+| `map-industry-to-secteur.mjs` | Mappe les industries LinkedIn vers `secteur_digi`. BAF et Technologie & IT passent avant Éducation pour éviter les faux positifs. |
 | `verify-classification.mjs` | Vérifie la cohérence des classifications en base vs les règles du script. |
 
 ### Diagnostic dérive `entreprise_id` (à relancer après import massif)
@@ -630,9 +631,11 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 
 ## 🏢 Page `/entreprises` — détail
 
-**Filtres disponibles :** Tier (inclut "Hors cible"), Secteur (multi-select), Account Manager. Les filtres "Statut commercial" et "Statut Digi" ont été retirés.
+**Filtres disponibles :** Tier (inclut "Hors cible"), bouton toggle **Client Digileads**, Secteur (multi-select), Account Manager. Bouton "Effacer" si filtre actif.
 
-**Fiche entreprise (drawer) :** Les champs "Statut" (statut_entreprise) et "Statut DIGI" (statut_digi) sont affichés en lecture seule — non modifiables depuis l'UI. Le tier est également en lecture seule (calculé automatiquement), mais une **checkbox "Marquer comme hors cible"** permet de forcer le tier à `Hors cible` indépendamment du calcul (passe `hors_cible = true` en base).
+**Logo ⚡ (Zap ambre)** affiché sur les lignes dont `statut_entreprise = 'Devenu client Digileads'`. Remplace l'ancien DigiIcon (qui était basé sur `is_digi_client` / `statut_digi`).
+
+**Fiche entreprise (drawer) :** `statut_entreprise` n'est pas modifiable — positionné automatiquement par trigger. Le tier est calculé automatiquement (Typology + Secteur), mais une **checkbox "Marquer comme hors cible"** permet de forcer le tier à `Hors cible` (passe `hors_cible = true` en base).
 
 ---
 

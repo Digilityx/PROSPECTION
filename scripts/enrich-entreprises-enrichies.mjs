@@ -22,33 +22,33 @@ const OUT_DIR = 'scripts/generated-sql'
 // ET au champ `hierarchy` de la valeur li_industries.
 // Ordre = first match wins ; les secteurs spécifiques passent en premier.
 
+// Ordre : secteurs à vocabulaire spécifique en premier,
+// Technologie & IT AVANT Éducation pour éviter les faux positifs.
+// /research/i retiré d'Éducation (attrape "Market Research").
 const RULES = [
   // Pharma/Santé
   { secteur: 'Pharma/Santé', patterns: [
-    /pharma/i, /biotech/i, /médic/i, /medic/i, /santé/i,
+    /pharma/i, /biotech/i, /médic/i, /medic/i, /santé/i, /health/i,
     /hospit(?!ality)/i, /hospital/i, /clinic/i, /mental health/i,
     /dental/i, /veterinar/i, /nursing/i, /optical/i,
     /medical device/i, /medical equipment/i, /medical practice/i,
     /alternative medicine/i,
   ]},
 
+  // BAF — avant Recrutement car /capital/ et /account/ sont ambigus
+  { secteur: 'BAF', patterns: [
+    /banking/i, /insurance/i, /financial service/i, /services financiers/i,
+    /investment/i, /capital market/i, /venture capital/i, /private equity/i,
+    /credit/i, /accounting/i, /audit/i,
+    /fintech/i, /payment/i, /stock exchange/i, /trading/i,
+  ]},
+
   // Recrutement
   { secteur: 'Recrutement', patterns: [
     /recruit/i, /staffing/i, /placement/i,
-    /human resources/i, /talent/i, /hiring/i,
+    /human resources/i, /talent acquisition/i, /hiring/i,
     /executive search/i, /outplacement/i, /interim/i,
     /temporary help/i,
-  ]},
-
-  // Éducation & Formation
-  { secteur: 'Éducation & Formation', patterns: [
-    /education/i, /universit/i,
-    /e-learning/i, /elearning/i, /training/i,
-    /school/i, /coaching/i,
-    /professional training/i, /higher education/i,
-    /primary.*education/i, /secondary.*education/i,
-    /research/i, /académi/i, /academi/i, /think tank/i,
-    /librari/i,
   ]},
 
   // Luxe
@@ -64,12 +64,12 @@ const RULES = [
   { secteur: 'Tourisme, Hôtellerie & Loisirs', patterns: [
     /touris/i, /hotel/i, /hospitality/i,
     /restaur/i, /leisure/i, /entertainment/i,
-    /event/i, /performing arts/i,
+    /event management/i, /performing arts/i,
     /gaming/i, /casino/i, /spectator sport/i,
     /fitness/i, /wellness/i, /recreation/i, /amusement/i,
     /music/i, /animation/i,
     /food.*beverage/i, /food and beverage service/i,
-    /travel/i, /museum/i, /sports$/i, /spectator/i,
+    /travel/i, /museum/i, /sports$/i,
   ]},
 
   // Immobilier & Construction
@@ -84,16 +84,20 @@ const RULES = [
     /transport/i, /logistic/i, /supply chain/i,
     /shipping/i, /maritime/i, /aviation/i,
     /airline/i, /railroad/i, /freight/i,
-    /warehousing/i, /delivery/i,
-    /trucking/i,
+    /warehousing/i, /delivery/i, /trucking/i,
+    /automotive/i, /vehicle/i,
   ]},
 
-  // BAF (Banque, Assurance, Finance)
-  { secteur: 'BAF', patterns: [
-    /banking/i, /insurance/i, /financial service/i,
-    /investment/i, /capital market/i, /venture capital/i,
-    /credit/i, /accounting/i, /audit/i,
-    /fintech/i, /payment/i, /stock/i, /trading/i,
+  // Industrie & Énergie
+  { secteur: 'Industrie & Énergie', patterns: [
+    /environmental service/i, /renewable/i, /\benergy\b/i,
+    /oil.*gas/i, /\bmining\b/i,
+    /agricultur/i, /farming/i, /forestry/i,
+    /defen[cs]e/i, /aerospace/i, /military/i,
+    /manufacturing/i, /industri/i,
+    /plastic/i, /textile/i, /chemical/i,
+    /packaging/i, /utilities/i, /machinery/i,
+    /shipbuilding/i, /glass.*ceramic/i,
   ]},
 
   // Commerce de Détail
@@ -101,28 +105,23 @@ const RULES = [
     /\bretail\b/i, /supermar/i, /hypermar/i, /grocery/i,
     /wholesale/i, /consumer goods/i,
     /e-commerce/i, /ecommerce/i,
-    /retail apparel/i, /retail luxury/i,
     /import.*export/i,
-    /building material/i,
   ]},
 
-  // Technologie & IT
+  // Technologie & IT — AVANT Éducation
   { secteur: 'Technologie & IT', patterns: [
     /software/i, /saas/i, /cloud/i, /cyber/i,
     /artificial intelligen/i, /machine learning/i,
-    /semiconductor/i, /computer/i,
-    /internet/i, /mobile.*gaming/i,
-    /it service/i, /it consult/i, /information tech/i,
+    /semiconductor/i, /computer/i, /informatiq/i,
+    /internet/i,
+    /it service/i, /it consult/i, /information tech/i, /information service/i,
     /technolog/i, /telecom/i, /network/i,
     /electronic/i, /hardware/i,
     /robotic/i, /iot/i,
-    /computer games/i, /computer hardware/i,
     /nanotechnolog/i,
-    /information service/i,
-    /online.*media/i, /internet publishing/i,
-    /software development/i,
-    /renewable energy semiconductor/i,
+    /internet publishing/i, /software development/i,
     /industrial automation/i,
+    /sécurité informatique/i,
   ]},
 
   // Concurrent (agences design, marketing, pub, photo, print)
@@ -131,7 +130,7 @@ const RULES = [
     /\bdesign\b/i, /graphic design/i,
     /public.*relation/i,
     /photograph/i,
-    /\bprint/i,
+    /\bprint\b/i,
     /writing.*editing/i,
   ]},
 
@@ -140,33 +139,29 @@ const RULES = [
     /\bmedia\b/i, /audiovisuel/i,
     /news/i, /publishing/i, /broadcast/i,
     /television/i, /radio/i,
-    /motion picture/i, /movies.*video/i,
-    /media production/i,
+    /motion picture/i, /media production/i,
     /book.*periodical/i,
   ]},
 
   // Public & Administrations
   { secteur: 'Public & Administrations', patterns: [
     /government/i,
-    /international affair/i, /military/i, /armed forces/i,
+    /international affair/i, /military.*affair/i, /armed forces/i,
     /law enforcement/i, /public safety/i, /judiciary/i,
     /executive office/i, /legislative/i, /public policy/i,
   ]},
 
-  // Industrie & Énergie
-  { secteur: 'Industrie & Énergie', patterns: [
-    /environmental service/i, /renewable/i, /\benergy\b/i,
-    /oil.*gas/i, /\bmining\b/i, /oil and gas/i,
-    /agricultur/i, /farming/i, /forestry/i,
-    /defen[cs]e/i, /aerospace/i,
-    /manufacturing/i, /industri/i,
-    /plastic/i, /textile/i, /chemical/i,
-    /packaging/i, /paper.*forest/i,
-    /utilities/i, /electrical.*electronic/i,
-    /machinery/i, /industrial machinery/i,
-    /shipbuilding/i, /railroad equipment/i,
-    /glass.*ceramic/i, /tobacco/i,
-    /sporting goods manufacturing/i,
+  // Éducation & Formation — après Technologie & IT
+  // /research/i retiré : attrape "Market Research" → Prestations
+  // /coaching/i resserré en /training.*coaching/i
+  { secteur: 'Éducation & Formation', patterns: [
+    /education/i, /enseignement/i, /universit/i,
+    /e-learning/i, /elearning/i, /\btraining\b/i,
+    /school/i, /académi/i, /academi/i,
+    /professional training/i, /higher education/i, /enseignement supérieur/i,
+    /primary.*education/i, /secondary.*education/i,
+    /training.*coaching/i, /coaching.*training/i,
+    /think tank/i, /librari/i, /vocational/i,
   ]},
 
   // Services aux Consommateurs
@@ -181,7 +176,7 @@ const RULES = [
     /arts.*craft/i, /fine art/i, /museums/i,
   ]},
 
-  // Prestations aux entreprises (catch-all professionnel)
+  // Prestations aux entreprises — catch-all en dernier
   { secteur: 'Prestations aux entreprises', patterns: [
     /consult/i, /strateg/i,
     /outsourc/i,

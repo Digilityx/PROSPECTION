@@ -12,15 +12,17 @@ import path from 'path'
 
 // ── Mapping rules: keyword patterns → secteur_digi ───────────────────
 // Order matters: first match wins. More specific patterns come first.
-
-// Order matters : les secteurs plus spécifiques passent avant les génériques
-// (ex : "Concurrent" avant "Prestations aux entreprises", "Media & Communication"
-// avant "Prestations aux entreprises", etc.)
+//
+// Ordre choisi : secteurs à vocabulaire très spécifique en premier,
+// secteurs génériques (Éducation, Prestations) en dernier.
+// Technologie & IT passe AVANT Éducation pour éviter que des labels
+// comme "Technology, Information and Internet" soient happés par /training/i
+// ou des variantes futures.
 const RULES = [
   // Pharma/Santé
   { secteur: 'Pharma/Santé', patterns: [
     /pharma/i, /biotech/i, /médic/i, /medic/i, /santé/i, /health/i,
-    /hôpita/i, /hospit(?!ality)/i, /médec/i, /clinic/i, /mental/i,
+    /hôpita/i, /hospit(?!ality)/i, /médec/i, /clinic/i, /mental health/i,
     /dentaire/i, /dental/i, /vétérin/i, /veterinar/i, /nursing/i,
     /soins/i, /optical/i, /optique/i, /chirurg/i, /dispositifs? médica/i,
     /medical device/i, /medical equipment/i, /medical practice/i,
@@ -28,39 +30,42 @@ const RULES = [
     /équipements? médica/i,
   ]},
 
+  // BAF (Banque, Assurance, Finance) — avant Recrutement car /capital/ est ambigu
+  { secteur: 'BAF', patterns: [
+    /banqu/i, /bank/i, /assurance/i, /insurance/i,
+    /financial service/i, /services financiers/i,
+    /investment/i, /capital market/i, /venture capital/i, /private equity/i,
+    /fonds?$/i, /fund management/i,
+    /crédit/i, /credit/i, /comptab/i, /audit/i,
+    /fiduciaire/i, /bourse/i, /stock exchange/i, /trading/i, /fintech/i,
+    /payment/i, /paiement/i,
+  ]},
+
   // Recrutement
   { secteur: 'Recrutement', patterns: [
     /recruit/i, /recrutement/i, /staffing/i, /placement/i,
-    /human resources/i, /ressources humaines/i, /talent/i, /hiring/i,
+    /human resources/i, /ressources humaines/i, /talent acquisition/i, /hiring/i,
     /executive search/i, /outplacement/i, /intérim/i, /interim/i,
     /temporary help/i,
   ]},
 
-  // Éducation & Formation
-  { secteur: 'Éducation & Formation', patterns: [
-    /education/i, /enseignement/i, /universitai?r/i, /universit[yé]/i,
-    /e-learning/i, /elearning/i, /training/i, /formation/i,
-    /école/i, /school/i, /coaching/i, /développement professionnel/i,
-    /professional training/i, /higher education/i, /enseignement supérieur/i,
-    /research/i, /recherche/i, /académi/i, /academi/i,
-  ]},
-
   // Luxe
   { secteur: 'Luxe', patterns: [
-    /luxe/i, /luxury/i, /joaill/i, /jewel/i, /horlog/i, /watch/i,
-    /fashion/i, /mode /i, /couture/i, /maroquin/i, /leather/i,
-    /cosmét/i, /cosmet/i, /parfum/i, /fragrance/i, /beauté/i, /beauty/i,
-    /habillement/i, /apparel/i,
+    /luxe/i, /luxury/i, /joaill/i, /jewel/i, /horlog/i,
+    /fashion/i, /mode /i, /couture/i, /maroquin/i, /leather goods/i,
+    /cosmét/i, /cosmet/i, /parfum/i, /fragrance/i,
+    /wine.*spirit/i, /spirits/i,
+    /habillement/i, /apparel.*fashion/i,
   ]},
 
   // Tourisme, Hôtellerie & Loisirs
   { secteur: 'Tourisme, Hôtellerie & Loisirs', patterns: [
     /touris/i, /hôtel/i, /hotel/i, /hospitality/i,
     /restaur/i, /loisir/i, /leisure/i, /entertainment/i, /divertissement/i,
-    /événement/i, /event/i, /spectacle/i, /performing arts/i, /arts du spectacle/i,
-    /gaming/i, /jeux/i, /casino/i, /sports?$/i, /sporting/i, /spectator sport/i,
+    /événement/i, /event management/i, /spectacle/i, /performing arts/i,
+    /gaming/i, /casino/i, /sports?$/i, /spectator sport/i,
     /fitness/i, /wellness/i, /recreation/i, /amusement/i,
-    /music/i, /musique/i, /arts?$/i, /animation/i,
+    /music/i, /musique/i, /animation/i,
     /wine/i, /food.*bever/i, /alimentaire/i,
     /travel/i, /voyage/i, /museum/i, /musée/i,
   ]},
@@ -78,83 +83,89 @@ const RULES = [
     /shipping/i, /maritime/i, /aviation/i, /aéronaut/i, /aérien/i,
     /airline/i, /railroad/i, /ferroviaire/i, /freight/i, /fret/i,
     /warehousing/i, /entreposage/i, /delivery/i, /livraison/i,
-    /automobile/i, /automotive/i, /véhicule/i, /vehicle/i, /motor/i,
+    /automobile/i, /automotive/i, /véhicule/i, /vehicle/i,
     /taxi/i, /limousine/i,
   ]},
 
-  // BAF (Banque, Assurance, Finance)
-  { secteur: 'BAF', patterns: [
-    /banqu/i, /bank/i, /assurance/i, /insurance/i, /financ/i,
-    /invest/i, /capital/i, /venture/i, /fonds?$/i, /fund/i,
-    /crédit/i, /credit/i, /comptab/i, /account/i, /audit/i,
-    /fiduciaire/i, /bourse/i, /stock/i, /trading/i, /fintech/i,
-    /payment/i, /paiement/i,
+  // Industrie & Énergie
+  { secteur: 'Industrie & Énergie', patterns: [
+    /environn/i, /environmental/i,
+    /renouvel/i, /renewable/i, /énergie/i, /energy/i, /solar/i,
+    /pétrole/i, /oil/i, /gas /i, /gaz /i, /mining/i, /mines/i,
+    /agricul/i, /farming/i, /forestry/i, /sylvicult/i, /pêche/i, /fishing/i,
+    /défense/i, /defen[cs]e/i, /military/i, /militair/i, /aerospace/i,
+    /fabrication/i, /manufacturing/i, /industrie/i, /industry/i,
+    /plastique/i, /plastic/i, /textile/i, /chemical/i, /chimie/i,
+    /engineering services/i, /services d.ingénierie/i, /machinery/i,
   ]},
 
-  // Commerce de Détail (grande distribution + e-commerce + retail)
+  // Commerce de Détail
   { secteur: 'Commerce de Détail', patterns: [
     /grande distribution/i, /supermar/i, /hypermar/i, /grocery/i,
-    /commerce de détail/i, /retail/i,
+    /commerce de détail/i, /\bretail\b/i,
     /wholesale/i, /commerce de gros/i, /consumer goods/i, /biens de consommation/i,
-    /distribution/i,
     /e-commerce/i, /ecommerce/i, /commerce en ligne/i, /online.*retail/i,
     /marketplace/i, /place de marché/i,
   ]},
 
-  // Technologie & IT
+  // Technologie & IT — AVANT Éducation pour éviter les faux positifs sur /training/, /information/
   { secteur: 'Technologie & IT', patterns: [
     /software/i, /logiciel/i, /saas/i, /cloud/i, /cyber/i,
     /intelligen.*artifici/i, /artificial intelligen/i, /machine learning/i,
     /data /i, /données/i, /blockchain/i, /crypto/i,
     /semiconductor/i, /semi-conducteur/i, /computer/i, /informatiq/i,
-    /internet/i, /web /i, /mobile/i, /app/i, /plateforme/i, /platform/i,
-    /it service/i, /it consult/i, /information tech/i,
+    /internet/i, /web /i, /mobile/i, /plateforme/i, /platform/i,
+    /it service/i, /it consult/i, /information tech/i, /information service/i,
     /technolog/i, /télécom/i, /telecom/i, /network/i, /réseau/i,
     /electronic/i, /électroniq/i, /hardware/i, /matériel/i,
     /robotiq/i, /robotic/i, /iot/i, /embedded/i,
     /développement de logiciels/i, /services et conseil en informatique/i,
     /technologie, information/i, /accessibilité numérique/i,
+    /sécurité informatique/i, /internet publishing/i,
   ]},
 
   // Concurrent (marketing, pub, design, com, PR, photo, print)
   { secteur: 'Concurrent', patterns: [
     /marketing/i, /publicité/i, /advertis/i,
-    /design/i, /créati/i,
+    /\bdesign\b/i, /graphic design/i, /créati/i,
     /relation.*publi/i, /public.*relation/i,
     /communications? services/i,
     /photograph/i,
-    /print/i, /imprim/i,
+    /\bprint\b/i, /imprim/i,
     /rédact/i, /writing and editing/i,
   ]},
 
-  // Media & Communication (TV, radio, presse, médias en ligne)
+  // Media & Communication
   { secteur: 'Media & Communication', patterns: [
     /média/i, /\bmedia\b/i, /audiovisuel/i,
     /presse/i, /news/i, /publishing/i, /édition/i,
     /broadcast/i, /télévision/i, /radio/i,
+    /motion picture/i, /media production/i,
   ]},
 
   // Public & Administrations
   { secteur: 'Public & Administrations', patterns: [
     /administra.*publi/i, /public.*admin/i,
     /gouvern/i, /government/i,
-    /international.*affair/i, /affaires.*international/i, /affaires étrangères/i,
+    /international.*affair/i, /affaires.*international/i,
     /public policy/i, /lobby/i, /services exécutifs/i, /services publics/i,
+    /law enforcement/i, /public safety/i,
   ]},
 
-  // Industrie & Énergie (énergie, environnement, agriculture, défense, industrie)
-  { secteur: 'Industrie & Énergie', patterns: [
-    /environn/i, /environmental/i,
-    /renouvel/i, /renewable/i, /énergie/i, /energy/i, /solar/i,
-    /pétrole/i, /oil/i, /gas /i, /gaz /i, /mining/i, /mines/i,
-    /agricul/i, /farming/i, /forestry/i, /sylvicult/i, /pêche/i, /fishing/i,
-    /défense/i, /defen[cs]e/i, /military/i, /militair/i, /aerospace/i, /aéroespatial/i,
-    /fabrication/i, /manufacturing/i, /industrie/i, /industry/i,
-    /plastique/i, /plastic/i, /textile/i, /chemical/i, /chimie/i,
-    /engineering services/i, /services d.ingénierie/i,
+  // Éducation & Formation — après Technologie & IT
+  // /research/i retiré : trop large (attrape "Market Research")
+  // /coaching/i resserré : /professional.*coaching/i ou /training.*coaching/i
+  { secteur: 'Éducation & Formation', patterns: [
+    /education/i, /enseignement/i, /universitai?r/i, /universit[yé]/i,
+    /e-learning/i, /elearning/i, /\btraining\b/i, /\bformation\b/i,
+    /école/i, /school/i, /académi/i, /academi/i,
+    /développement professionnel/i, /professional training/i,
+    /training.*coaching/i, /coaching.*training/i,
+    /higher education/i, /enseignement supérieur/i, /enseignement$/i,
+    /think tank/i, /librari/i, /vocational/i,
   ]},
 
-  // Services aux Consommateurs (B2C, civique, associatif)
+  // Services aux Consommateurs
   { secteur: 'Services aux Consommateurs', patterns: [
     /services aux consommateur/i, /consumer service/i,
     /services à la personne/i, /individual.*family/i,
@@ -162,21 +173,20 @@ const RULES = [
     /community/i, /humanitaire/i, /humanitarian/i,
     /services aux animaux/i, /pet service/i,
     /conciergerie/i, /personal service/i,
-    /coiffure/i, /beauté.*soins/i,
+    /coiffure/i,
     /aménagement paysager/i, /landscap/i,
-    /death care/i,
-    /action sociale/i,
+    /death care/i, /action sociale/i,
   ]},
 
-  // Prestations aux entreprises (conseil, services pro, juridique, sécurité, études)
+  // Prestations aux entreprises — catch-all professionnel en dernier
   { secteur: 'Prestations aux entreprises', patterns: [
+    /market research/i, /étude.*marché/i, /études de marché/i, /sondage/i,
     /consult/i, /conseil/i, /stratég/i, /strateg/i,
     /outsourc/i, /externalisation/i,
     /managed service/i, /professional service/i, /services professionnel/i,
     /business.*service/i, /services.*entreprise/i,
     /legal/i, /juridi/i, /avocat/i, /law /i, /cabinet/i, /notai?r/i,
     /traduction/i, /translat/i,
-    /market research/i, /étude.*marché/i, /sondage/i,
     /facilities/i, /janitorial/i, /cleaning/i,
     /sécurité/i, /security service/i, /security system/i,
     /administrative.*support/i, /services administratifs/i,

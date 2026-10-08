@@ -21,6 +21,8 @@
  * Options :
  *   --search="Antoine Guenancia"  → filtre sur un nom en particulier
  *   --dry-run                     → simule la fusion sans rien modifier
+ *   --linkedin-id-only            → fusionne uniquement les paires ayant le même
+ *                                   id_url_linkedin (doublons certains)
  */
 
 import { readFileSync } from 'fs'
@@ -45,6 +47,7 @@ const cliArgs = process.argv.slice(2)
 const doMerge = cliArgs.includes('--merge')
 const dryRun = cliArgs.includes('--dry-run')
 const interactive = cliArgs.includes('--interactive')
+const linkedinIdOnly = cliArgs.includes('--linkedin-id-only')
 const searchArg = cliArgs.find(a => a.startsWith('--search='))?.split('=').slice(1).join('=')
 
 // ── 1. Récupérer tous les contacts (ou filtrer par nom) ───────────────
@@ -79,18 +82,29 @@ while (true) {
 
 console.log(`  ${allContacts.length} contacts chargés\n`)
 
-// ── 2. Grouper par (first_name + last_name) normalisé ────────────────
+// ── 2. Grouper par id_url_linkedin (mode --linkedin-id-only) ou par nom ──
 function normalizeName(s) {
   if (!s) return ''
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
 }
 
-const groups = new Map() // "prenom nom" -> contact[]
-for (const c of allContacts) {
-  const key = `${normalizeName(c.first_name)} ${normalizeName(c.last_name)}`
-  if (!key.trim()) continue
-  if (!groups.has(key)) groups.set(key, [])
-  groups.get(key).push(c)
+const groups = new Map()
+if (linkedinIdOnly) {
+  // Grouper par id_url_linkedin — doublons certains uniquement
+  for (const c of allContacts) {
+    if (!c.id_url_linkedin) continue
+    if (!groups.has(c.id_url_linkedin)) groups.set(c.id_url_linkedin, [])
+    groups.get(c.id_url_linkedin).push(c)
+  }
+  console.log(`🔒 Mode --linkedin-id-only : groupement par id_url_linkedin (doublons certains)\n`)
+} else {
+  // Grouper par (first_name + last_name) normalisé
+  for (const c of allContacts) {
+    const key = `${normalizeName(c.first_name)} ${normalizeName(c.last_name)}`
+    if (!key.trim()) continue
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(c)
+  }
 }
 
 const duplicateGroups = [...groups.entries()].filter(([, contacts]) => contacts.length > 1)
@@ -121,7 +135,9 @@ for (const [name, contacts] of duplicateGroups) {
 }
 
 if (!doMerge) {
-  console.log(`\n💡 Pour fusionner : node scripts/detect-merge-duplicates.mjs --merge [--dry-run]`)
+  console.log(`\n💡 Pour fusionner :`)
+  console.log(`   node scripts/detect-merge-duplicates.mjs --merge [--dry-run]`)
+  console.log(`   node scripts/detect-merge-duplicates.mjs --linkedin-id-only --merge [--dry-run]  ← doublons certains seulement`)
   process.exit(0)
 }
 
@@ -308,8 +324,21 @@ for (const [name, contacts] of duplicateGroups) {
       if (!keeper.linkedin_url && dup.linkedin_url) patch.linkedin_url = dup.linkedin_url
       if (!keeper.id_url_linkedin && dup.id_url_linkedin) patch.id_url_linkedin = dup.id_url_linkedin
       if (!keeper.owner_membre_id && dup.owner_membre_id) patch.owner_membre_id = dup.owner_membre_id
-      if (!keeper.entreprise_id && dup.entreprise_id) patch.entreprise_id = dup.entreprise_id
       if (!keeper.contact_digi && dup.contact_digi) patch.contact_digi = true
+
+      // entreprise_id : si keeper n'en a pas → prendre celle du doublon
+      // Si les deux ont des entreprises différentes → prendre celle du contact le plus récent
+      if (!keeper.entreprise_id && dup.entreprise_id) {
+        patch.entreprise_id = dup.entreprise_id
+        console.log(`    → entreprise_id : vide → ${dup.entreprise_id.slice(0, 8)} (depuis doublon)`)
+      } else if (keeper.entreprise_id && dup.entreprise_id && keeper.entreprise_id !== dup.entreprise_id) {
+        // Deux entreprises différentes → on garde celle du keeper (plus complet)
+        // et on signale le conflit pour vérification manuelle
+        conflicts.push(
+          `entreprise_id conflit : keeper="${keeper.company_name || keeper.entreprise_id.slice(0, 8)}" ` +
+          `vs doublon="${dup.company_name || dup.entreprise_id.slice(0, 8)}" → keeper conservé, à vérifier sur LinkedIn`
+        )
+      }
 
       // Comparer les postes pour savoir si on est face à un changement de job
       const samePosition = normalizeName(keeper.position || '') === normalizeName(dup.position || '')

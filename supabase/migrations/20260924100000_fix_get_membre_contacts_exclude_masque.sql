@@ -21,6 +21,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 AS $$
   WITH rel AS MATERIALIZED (
     SELECT cmr.contact_id, cmr.niveau_de_relation

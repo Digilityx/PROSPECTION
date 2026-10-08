@@ -103,7 +103,7 @@ export default function Dashboard() {
   const s = stats ?? {
     total_entreprises: 0, total_contacts: 0, total_notifications: 0,
     deals_en_cours: 0, contacts_a_contacter: 0, contacts_contactes: 0,
-    tier1: 0, tier2: 0, tier3: 0,
+    tier1: 0, tier2: 0, tier3: 0, hors_cible: 0, clients_digileads: 0,
   }
 
   return (
@@ -160,20 +160,31 @@ export default function Dashboard() {
             <TierBar label="Tier 3" count={s.tier3} total={s.total_entreprises} color="bg-amber-400" href="/entreprises?tier=Tier 3" />
             <TierBar
               label="Hors-Tier"
-              count={s.total_entreprises - s.tier1 - s.tier2 - s.tier3}
+              count={s.total_entreprises - s.tier1 - s.tier2 - s.tier3 - s.hors_cible}
               total={s.total_entreprises}
               color="bg-muted-foreground/30"
               href="/entreprises?tier=Hors-Tier"
+            />
+            <TierBar
+              label="Hors cible"
+              count={s.hors_cible}
+              total={s.total_entreprises}
+              color="bg-rose-400"
+              href="/entreprises?tier=Hors cible"
             />
           </div>
         </div>
 
         <div className="rounded-xl border border-[#050d2b]/12 bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Pipeline</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Link to="/entreprises?statut=Deal en cours" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
               <p className="text-2xl font-bold">{s.deals_en_cours}</p>
               <p className="text-xs text-muted-foreground mt-1">Deals en cours</p>
+            </Link>
+            <Link to="/entreprises?client_digileads=true" className="rounded-md bg-[#050d2b]/8 dark:bg-white/8 p-4 text-center hover:bg-[#050d2b]/12 dark:hover:bg-white/12 transition-colors">
+              <p className="text-2xl font-bold text-[#050d2b] dark:text-white">{s.clients_digileads}</p>
+              <p className="text-xs text-muted-foreground mt-1">Clients Digileads</p>
             </Link>
             <Link to="/notifications" className="rounded-md bg-muted/50 p-4 text-center hover:bg-muted transition-colors">
               <p className="text-2xl font-bold">{s.total_notifications}</p>

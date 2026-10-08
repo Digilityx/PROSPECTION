@@ -183,7 +183,7 @@ async function main() {
             .select('id')
             .eq('company_id_linkedin', updateData.company_id_linkedin)
             .single()
-          if (ent) updateData.entreprise_id = ent.id
+          updateData.entreprise_id = ent ? ent.id : null
         }
         updateData.last_scraped_at = new Date().toISOString()
 
@@ -191,6 +191,19 @@ async function main() {
           .from('contacts')
           .update(updateData)
           .eq('id', dbRow.id)
+
+        // Sync contacts_membres_relations dénormalisés
+        if (updateData.company_id_linkedin !== undefined || updateData.company_name !== undefined) {
+          const relUpdate = {}
+          if (updateData.entreprise_id !== undefined) relUpdate.entreprise_id = updateData.entreprise_id
+          if (updateData.company_name !== undefined) relUpdate.company_name = updateData.company_name
+          if (Object.keys(relUpdate).length > 0) {
+            await supabase
+              .from('contacts_membres_relations')
+              .update(relUpdate)
+              .eq('contact_id', dbRow.id)
+          }
+        }
         contactsUpdated++
       }
 

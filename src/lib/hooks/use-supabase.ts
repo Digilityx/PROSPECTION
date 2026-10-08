@@ -46,6 +46,8 @@ export interface DashboardStats {
   tier1: number
   tier2: number
   tier3: number
+  hors_cible: number
+  clients_digileads: number
 }
 
 export function useDashboardStats() {
@@ -65,6 +67,8 @@ export function useDashboardStats() {
         tier1: num(r.tier1),
         tier2: num(r.tier2),
         tier3: num(r.tier3),
+        hors_cible: num(r.hors_cible),
+        clients_digileads: num(r.clients_digileads),
       },
       error: null,
     }

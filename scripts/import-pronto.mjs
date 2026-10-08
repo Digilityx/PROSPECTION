@@ -301,6 +301,15 @@ if (toUpdate.length > 0) {
     }
 
     if (!dryRun) {
+      await supabase.from('scraping_snapshots').insert({
+        contact_id: dbRow.id,
+        scraped_at: new Date().toISOString(),
+        position: csvData.position,
+        company_name: csvData.company_name,
+        company_id_linkedin: csvData.company_id_linkedin,
+        location: csvData.location,
+      })
+
       const updateData = {}
       for (const c of changes) updateData[c.field] = c.new
 
@@ -310,10 +319,23 @@ if (toUpdate.length > 0) {
           .select('id')
           .eq('company_id_linkedin', updateData.company_id_linkedin)
           .single()
-        if (ent) updateData.entreprise_id = ent.id
+        updateData.entreprise_id = ent ? ent.id : null
       }
 
       await supabase.from('contacts').update(updateData).eq('id', dbRow.id)
+
+      // Sync contacts_membres_relations dénormalisés
+      if (updateData.company_id_linkedin !== undefined || updateData.company_name !== undefined) {
+        const relUpdate = {}
+        if (updateData.entreprise_id !== undefined) relUpdate.entreprise_id = updateData.entreprise_id
+        if (updateData.company_name !== undefined) relUpdate.company_name = updateData.company_name
+        if (Object.keys(relUpdate).length > 0) {
+          await supabase
+            .from('contacts_membres_relations')
+            .update(relUpdate)
+            .eq('contact_id', dbRow.id)
+        }
+      }
       updated++
     }
   }
