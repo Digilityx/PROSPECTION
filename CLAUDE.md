@@ -343,6 +343,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `get_membre_relations_by_tier()` | Répartition réseau par tier et par membre (membres actifs, contacts non masqués) |
 | `get_membre_contact_count()` | Nb de contacts par membre (actifs, partageant, non masqués) |
 | `get_membre_tier1_unqualified_count()` | Nb de contacts Tier 1 sans niveau de relation renseigné par membre |
+| `get_membre_tier1_stats()` | Par membre : `total_tier1` (contacts T1 visibles) + `unqualified_tier1` (sans relation) — même scope (exclut masque, contact_digi, is_digi_employee). Utilisé par la Vue Tier pour détecter les membres à 0 qualifiés T1. |
 | `contact_counts_for_entreprises(ids)` | Nb de contacts agrégé par `entreprise_id` |
 | `get_dashboard_stats()` | 12 compteurs pour le dashboard en un seul appel : total_entreprises, total_contacts, total_notifications, contacts_a_contacter, contacts_contactes, contacts_interesses, contacts_clients_digi, tier1/tier2/tier3, hors_cible (entreprises `hors_cible = true`), clients_digileads (`statut_entreprise = 'Devenu client Digileads'`) |
 | `get_secteur_stats()` | Nb d'entreprises par secteur |

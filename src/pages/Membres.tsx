@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Loader2, Users, UserCircle, ChevronDown, Check, Download, Layers, Copy } from 'lucide-react'
+import { Loader2, Users, UserCircle, ChevronDown, Check, Download, Layers, Copy, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -21,6 +21,7 @@ interface MembreStats {
   totalReseau: number
   byStatut: Record<string, number>
   unqualifiedTier1: number
+  totalTier1: number
 }
 
 type MemberItem = {
@@ -265,7 +266,7 @@ export default function Membres() {
         for (const [k, v] of Object.entries(counts)) {
           if (!STATUTS_CONTACT.includes(k)) total += v
         }
-        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0 }
+        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0, totalTier1: 0 }
       })
 
       return results.sort((a, b) => b.total - a.total)
@@ -278,9 +279,9 @@ export default function Membres() {
     queryKey: ['membres-tier-stats'],
     queryFn: async () => {
       await supabase.auth.refreshSession()
-      const [{ data: rpcData }, { data: unqualifiedData }] = await Promise.all([
+      const [{ data: rpcData }, { data: tier1StatsData }] = await Promise.all([
         supabase.rpc('get_membre_relations_by_tier'),
-        supabase.rpc('get_membre_tier1_unqualified_count'),
+        supabase.rpc('get_membre_tier1_stats'),
       ])
 
       if (!rpcData) return []
@@ -291,9 +292,9 @@ export default function Membres() {
         lookup.get(row.membre_id)![row.tier] = Number(row.cnt)
       }
 
-      const unqualifiedLookup = new Map<string, number>()
-      for (const row of (unqualifiedData ?? []) as { membre_id: string; cnt: number }[]) {
-        unqualifiedLookup.set(row.membre_id, Number(row.cnt))
+      const tier1Lookup = new Map<string, { total: number; unqualified: number }>()
+      for (const row of (tier1StatsData ?? []) as { membre_id: string; total_tier1: number; unqualified_tier1: number }[]) {
+        tier1Lookup.set(row.membre_id, { total: Number(row.total_tier1), unqualified: Number(row.unqualified_tier1) })
       }
 
       const stats: MembreStats[] = allMembres.map(m => {
@@ -304,7 +305,8 @@ export default function Membres() {
           byStatut[t] = counts[t] ?? 0
           total += byStatut[t]
         }
-        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: unqualifiedLookup.get(m.id) ?? 0 }
+        const t1 = tier1Lookup.get(m.id)
+        return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: t1?.unqualified ?? 0, totalTier1: t1?.total ?? 0 }
       })
 
       // Sort by Tier 1 desc
@@ -754,6 +756,9 @@ export default function Membres() {
                               <Badge variant="destructive" className="text-xs tabular-nums">
                                 {m.unqualifiedTier1}
                               </Badge>
+                              {m.totalTier1 > 0 && m.unqualifiedTier1 === m.totalTier1 && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" aria-label="Aucun contact T1 qualifié" />
+                              )}
                               {(() => {
                                 const membreInfo = allMembres.find(a => a.id === m.id)
                                 if (!membreInfo?.slack_user_id) return null
