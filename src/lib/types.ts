@@ -17,6 +17,7 @@ export type StatutContact =
   | 'Sélectionné'
   | 'À contacter'
   | 'Contacté'
+  | 'Rdv pris'
   | 'Intéressé'
   | 'Pas intéressé'
   | 'Client à date'

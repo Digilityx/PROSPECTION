@@ -150,7 +150,7 @@ Colonnes principales :
 | `persona` | TEXT | `Dirigeant` \| `Marketing` \| `Produit` \| `Design` \| `Commercial` \| `Acheteur` \| `Hors expertise Digi` |
 | `hierarchie` | TEXT | `COMEX` \| `Directeur` \| `Manager` \| `Opérationnel` \| `Stagiaire/Alternant` |
 | `contact_digi` | BOOLEAN | **Contact réservé** — piloté automatiquement par `historique_relationnel` : `true` si `historique_relationnel = 'Réservé'`, `false` sinon. Plus de case à cocher manuelle. |
-| `statut_contact` | TEXT | `Sélectionné` \| `À contacter` \| `Contacté` \| `Intéressé` \| `Pas intéressé` \| `Client à date` \| `Client Digileads` — chaque changement est loggué automatiquement dans `qualification_logs` |
+| `statut_contact` | TEXT | `Sélectionné` \| `À contacter` \| `Contacté` \| `Rdv pris` \| `Intéressé` \| `Pas intéressé` \| `Client à date` \| `Client Digileads` — chaque changement est loggué automatiquement dans `qualification_logs` |
 | `historique_relationnel` | TEXT | `Jamais contacté` \| `Réservé` \| `Deal en cours` \| `Mission en cours` \| `A recontacter N+1` \| `En attente de retour` \| `Ancien client Digi` \| `Contact non pertinent` \| `A quitté l'entreprise` \| `A changé de poste` — qualifié manuellement dans le drawer. Sélectionner "Réservé" met automatiquement `contact_digi = true`. |
 | `last_message_sent_at` | TIMESTAMPTZ | Date du dernier "Message à envoyer" marqué comme envoyé pour ce contact (depuis la vue Contacts par Owner). |
 | `niveau_de_relation` | TEXT | Valeur cache — maintenue par trigger depuis `contacts_membres_relations` |
@@ -643,9 +643,9 @@ WHERE cmr.contact_id = c.id
 ## 📊 Page `/membres` — détail des onglets (admin)
 
 ### Onglet "Contacts par Owner"
-Tableau des membres Digi triés par nombre de contacts dont ils sont owner. Colonnes : Membre, Contacts (total owner), puis une colonne par statut contact (Sélectionné, À contacter, Contacté, Intéressé, Pas intéressé, Client à date, Client Digileads).
+Tableau des membres Digi triés par nombre de contacts dont ils sont owner. Colonnes : Membre, Contacts (total owner), puis une colonne par statut contact (Sélectionné, À contacter, Contacté, Rdv pris, Intéressé, Pas intéressé, Client à date, Client Digileads).
 
-**Filtres** : dropdown Statut (filtre par statut_contact) et dropdown Owner (filtre par membre). Les badges statut sont colorés selon la palette : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy.
+**Filtres** : dropdown Statut (filtre par statut_contact) et dropdown Owner (filtre par membre). Les badges statut sont colorés selon la palette : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Rdv pris=teal, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy.
 
 **Dates** : sous chaque badge statut s'affiche la date du dernier changement de statut (depuis `qualification_logs`), sauf pour "Sélectionné" qui a sa propre logique.
 
@@ -673,7 +673,7 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 **Colonnes du tableau :** Contact, Entreprise, Statut, Historique, Relation (scoped uniquement), Digi, Score.
 
 **Badges colorés :**
-- `statut_contact` : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy
+- `statut_contact` : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Rdv pris=teal, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy
 - `historique_relationnel` : Réservé=ambre, Deal/Mission en cours=ambre, A recontacter N+1=orange, En attente de retour=bleu, Ancien client Digi=violet, Jamais contacté=gris, Contact non pertinent=gris, A quitté l'entreprise=gris, A changé de poste=bleu ciel
 
 **Filtres disponibles :** Tier, Statut contact, Historique relationnel, Owner, Account Manager. Bouton "Effacer" si filtre actif.

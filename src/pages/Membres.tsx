@@ -34,13 +34,14 @@ type MemberItem = {
 const APP_URL = 'https://prospection-blond-theta.vercel.app'
 
 const STATUTS_CONTACT = [
-  'Sélectionné', 'À contacter', 'Contacté', 'Intéressé', 'Pas intéressé', 'Client à date', 'Client Digileads',
+  'Sélectionné', 'À contacter', 'Contacté', 'Rdv pris', 'Intéressé', 'Pas intéressé', 'Client à date', 'Client Digileads',
 ]
 
 const STATUT_CONTACT_CLASS: Record<string, string> = {
   'Sélectionné':      'bg-red-800 text-white',
   'À contacter':      'bg-blue-100 text-blue-800',
   'Contacté':         'bg-amber-100 text-amber-800',
+  'Rdv pris':         'bg-teal-100 text-teal-800',
   'Intéressé':        'bg-emerald-100 text-emerald-800',
   'Pas intéressé':    'bg-gray-100 text-gray-500',
   'Client à date':    'bg-violet-100 text-violet-800',

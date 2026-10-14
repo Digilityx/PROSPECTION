@@ -23,6 +23,7 @@ const STATUT_CONTACT_CLASS: Record<string, string> = {
   'Sélectionné':      'bg-red-800 text-white',
   'À contacter':      'bg-blue-100 text-blue-800',
   'Contacté':         'bg-amber-100 text-amber-800',
+  'Rdv pris':         'bg-teal-100 text-teal-800',
   'Intéressé':        'bg-emerald-100 text-emerald-800',
   'Pas intéressé':    'bg-gray-100 text-gray-500',
   'Client à date':    'bg-violet-100 text-violet-800',
@@ -523,6 +524,7 @@ export default function Contacts() {
             <SelectItem value="Sélectionné">Sélectionné</SelectItem>
             <SelectItem value="À contacter">À contacter</SelectItem>
             <SelectItem value="Contacté">Contacté</SelectItem>
+            <SelectItem value="Rdv pris">Rdv pris</SelectItem>
             <SelectItem value="Intéressé">Intéressé</SelectItem>
             <SelectItem value="Pas intéressé">Pas intéressé</SelectItem>
             <SelectItem value="Client à date">Client à date</SelectItem>

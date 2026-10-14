@@ -15,7 +15,7 @@ const PERSONAS: Persona[] = [
 ]
 const HIERARCHIES: Hierarchie[] = ['COMEX', 'Directeur', 'Manager', 'Opérationnel', 'Stagiaire/Alternant']
 const STATUTS: StatutContact[] = [
-  'Sélectionné', 'À contacter', 'Contacté', 'Intéressé',
+  'Sélectionné', 'À contacter', 'Contacté', 'Rdv pris', 'Intéressé',
   'Pas intéressé', 'Client à date', 'Client Digileads',
 ]
 const NIVEAUX_RELATION: NiveauRelation[] = [
@@ -294,7 +294,8 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
       'Client à date':    { priority: 5, entrepriseStatut: 'Devenu client Digileads' },
       'Client Digileads': { priority: 6, entrepriseStatut: 'Devenu client Digileads' },
       'Sélectionné':    { priority: 4, entrepriseStatut: 'Deal en cours' },
-      'Intéressé':      { priority: 3, entrepriseStatut: 'Deal en cours' },
+      'Intéressé':      { priority: 4, entrepriseStatut: 'Deal en cours' },
+      'Rdv pris':       { priority: 3, entrepriseStatut: 'Deal en cours' },
       'Contacté':       { priority: 2, entrepriseStatut: 'Activement démarché' },
       'À contacter':    { priority: 1, entrepriseStatut: 'À démarcher' },
     }
