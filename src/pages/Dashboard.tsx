@@ -166,6 +166,7 @@ export default function Dashboard() {
   const [openActivation, setOpenActivation] = useState(true)
   const [secteurFilter, setSecteurFilter] = useState<string[]>(['BAF', 'Pharma/Santé'])
   const [activationSecteurFilter, setActivationSecteurFilter] = useState<string[]>(['BAF', 'Pharma/Santé'])
+  const [distributionSecteurFilter, setDistributionSecteurFilter] = useState<string[]>(['BAF', 'Pharma/Santé'])
 
   const { data: stats, loading } = useDashboardStats()
   const { data: activationStats } = useActivationStats(activationSecteurFilter)
@@ -316,8 +317,8 @@ if (loading) {
         )}
 
         <div className="grid gap-4 md:grid-cols-2">
-          <ContactDistributionChart dimension="niveau_de_relation" title="Contacts par niveau relationnel" />
-          <ContactDistributionChart dimension="persona" title="Contacts par persona" />
+          <ContactDistributionChart dimension="niveau_de_relation" title="Contacts par niveau relationnel" secteurs={distributionSecteurFilter} onSecteursChange={setDistributionSecteurFilter} />
+          <ContactDistributionChart dimension="persona" title="Contacts par persona" secteurs={distributionSecteurFilter} onSecteursChange={setDistributionSecteurFilter} />
         </div>
       </>}
 

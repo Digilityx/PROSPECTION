@@ -131,11 +131,14 @@ const NIVEAU_COLOR: Record<string, string> = {
 export function ContactDistributionChart({
   dimension,
   title,
+  secteurs,
+  onSecteursChange,
 }: {
   dimension: 'niveau_de_relation' | 'persona'
   title: string
+  secteurs: string[]
+  onSecteursChange: (v: string[]) => void
 }) {
-  const [secteurs, setSecteurs] = useState<string[]>(['BAF', 'Pharma/Santé'])
   const navigate = useNavigate()
   const { data, loading } = useContactDistribution(dimension, null, secteurs)
 
@@ -159,7 +162,7 @@ export function ContactDistributionChart({
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h2 className="text-lg font-semibold">{title}</h2>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <SecteurFilter selected={secteurs} onChange={setSecteurs} />
+          <SecteurFilter selected={secteurs} onChange={onSecteursChange} />
         </div>
       </div>
 
