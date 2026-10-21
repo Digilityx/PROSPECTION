@@ -342,6 +342,12 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `get_dashboard_stats()` | 12 compteurs pour le dashboard en un seul appel : total_entreprises, total_contacts, total_notifications, contacts_a_contacter, contacts_contactes, contacts_interesses, contacts_clients_digi, tier1/tier2/tier3, hors_cible (entreprises `hors_cible = true`), clients_digileads (`statut_entreprise = 'Devenu client Digileads'`) |
 | `get_secteur_stats()` | Nb d'entreprises par secteur |
 | `get_owner_a_contacter_contacts(p_owner_id)` | Contacts d'un owner triés par statut (SECURITY DEFINER — contourne RLS). Retourne : id, first_name, last_name, position, company_name, scoring, tier, entreprise_id, niveau_de_relation, account_manager_name, account_manager_slack_user_id, statut_contact, statut_contact_changed_at (dernière date de changement de statut depuis qualification_logs), last_message_sent_at. Ordre : À contacter en premier, puis par scoring DESC. Exclut masque=true et contact_digi=true. |
+| `get_dashboard_pipeline_activity(p_from, p_to)` | Activité pipeline sur une période (via qualification_logs si dates fournies, snapshot sinon). Retourne : a_contacter, contactes, rdv_pris, interesses, pas_interesses, clients_digi. |
+| `get_pipeline_monthly_evolution(p_months)` | Évolution mensuelle sur N mois glissants via qualification_logs. Retourne : month (YYYY-MM), a_contacter, contactes, rdv_pris, interesses, pas_interesses, clients_digi. |
+| `get_contact_distribution(p_dimension, p_tier, p_secteurs)` | Répartition contacts par niveau_de_relation ou persona, filtrable par tier et/ou secteurs. Retourne : label, cnt. |
+| `get_activation_entreprise_stats(p_secteurs)` | Nb d'entreprises par tier sans contact activé (statut IN À contacter/Contacté/Rdv pris/Intéressé), filtrable par secteur. |
+| `get_activation_entreprise_list(p_secteurs)` | Liste des entreprises sans contact activé avec nb_contacts existants, triées par tier puis nom. Filtrable par secteur. |
+| `get_activation_owner_stats(p_secteurs)` | Tous les owners actifs avec contacts : nb_contacts total + nb_contacts_actives. Triés par nb_contacts_actives ASC. Filtrable par secteur. |
 
 ---
 

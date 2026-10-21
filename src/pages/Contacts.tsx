@@ -130,9 +130,10 @@ export default function Contacts() {
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
   const [statutFilter, setStatutFilter] = useState<string>(statutParam ?? 'all')
-  const [tierFilter, setTierFilter] = useState<string>('Tier 1')
-  const [relationFilter, setRelationFilter] = useState<string>('all')
-  const [ownerFilter, setOwnerFilter] = useState<string>('all')
+  const [tierFilter, setTierFilter] = useState<string>(searchParams.get('tier') ?? 'Tier 1')
+  const [relationFilter, setRelationFilter] = useState<string>(searchParams.get('niveau_de_relation') ?? 'all')
+  const [personaFilter, setPersonaFilter] = useState<string>(searchParams.get('persona') ?? 'all')
+  const [ownerFilter, setOwnerFilter] = useState<string>(searchParams.get('owner') ?? 'all')
   const [amFilter, setAmFilter] = useState<string>('all')
   const [membresList, setMembresList] = useState<{ id: string; full_name: string }[]>([])
   const [amList, setAmList] = useState<{ id: string; full_name: string }[]>([])
@@ -145,12 +146,13 @@ export default function Contacts() {
   const [historiqueFilter, setHistoriqueFilter] = useState<string>('all')
   const debouncedSearch = useDebouncedValue(search, 300)
 
-  const hasActiveFilters = statutFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || ownerFilter !== 'all' || amFilter !== 'all' || historiqueFilter !== 'all' || search.trim() !== ''
+  const hasActiveFilters = statutFilter !== 'all' || tierFilter !== 'all' || relationFilter !== 'all' || ownerFilter !== 'all' || amFilter !== 'all' || historiqueFilter !== 'all' || personaFilter !== 'all' || search.trim() !== ''
 
   function clearAllFilters() {
     setStatutFilter('all')
     setTierFilter('all')
     setRelationFilter('all')
+    setPersonaFilter('all')
     setOwnerFilter('all')
     setAmFilter('all')
     setHistoriqueFilter('all')
@@ -197,6 +199,7 @@ export default function Contacts() {
       tier: tierFilter,
       statut: statutFilter,
       relation: relationFilter,
+      persona: personaFilter,
       owner: ownerFilter,
       am: amFilter,
       search: debouncedSearch,
@@ -243,6 +246,8 @@ export default function Contacts() {
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
+      if (personaFilter !== 'all') query = query.eq('persona', personaFilter)
+      if (relationFilter !== 'all') query = query.eq('niveau_de_relation', relationFilter)
       if (amFilter !== 'all') query = query.eq('entreprises.account_manager_id', amFilter)
       if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
       if (debouncedSearch.trim()) {
@@ -279,6 +284,7 @@ export default function Contacts() {
       tier: tierFilter,
       statut: statutFilter,
       relation: relationFilter,
+      persona: personaFilter,
       owner: ownerFilter,
       am: amFilter,
       search: debouncedSearch,
@@ -319,6 +325,8 @@ export default function Contacts() {
       if (entrepriseFilter) query = query.eq('entreprise_id', entrepriseFilter)
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
+      if (personaFilter !== 'all') query = query.eq('persona', personaFilter)
+      if (relationFilter !== 'all') query = query.eq('niveau_de_relation', relationFilter)
       if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
       if (amFilter !== 'all') query = query.eq('entreprises.account_manager_id', amFilter)
       if (needsEntrepriseJoin) query = query.limit(0)

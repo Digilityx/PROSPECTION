@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Building2, Search, Loader2, ChevronLeft, ChevronRight, ExternalLink, Users, FilterX, Download, ChevronDown, Check, Zap } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -132,6 +132,10 @@ export default function Entreprises() {
     return param ? param.split(',') : []
   })
   const [amFilter, setAmFilter] = useState<string>('all')
+  const [sansContactActiveFilter, setSansContactActiveFilter] = useState<boolean>(
+    searchParams.get('sans_contact_active') === 'true'
+  )
+  const [activeEntrepriseIds, setActiveEntrepriseIds] = useState<string[] | null>(null)
   const [selected, setSelected] = useState<Entreprise | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -151,7 +155,7 @@ export default function Entreprises() {
     if (amFilter !== 'all') ensureAmList()
   }, [amFilter])
 
-  const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || amFilter !== 'all' || search.trim() !== ''
+  const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || amFilter !== 'all' || sansContactActiveFilter || search.trim() !== ''
   const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
 
   function clearAllFilters() {
@@ -159,12 +163,32 @@ export default function Entreprises() {
     setStatutFilter('all')
     setSecteurFilter([])
     setAmFilter('all')
+    setSansContactActiveFilter(false)
+    setActiveEntrepriseIds(null)
     setSearch('')
     setPage(0)
   }
 
+  useEffect(() => {
+    if (!sansContactActiveFilter || !userIsAdmin) {
+      setActiveEntrepriseIds(null)
+      return
+    }
+    supabase
+      .from('contacts')
+      .select('entreprise_id')
+      .in('statut_contact', ['À contacter', 'Contacté', 'Rdv pris', 'Intéressé'])
+      .eq('masque', false)
+      .eq('is_digi_employee', false)
+      .not('entreprise_id', 'is', null)
+      .then(({ data }) => {
+        const ids = [...new Set((data ?? []).map(c => c.entreprise_id as string))]
+        setActiveEntrepriseIds(ids)
+      })
+  }, [sansContactActiveFilter, userIsAdmin])
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const applyFilters = (query: any) => {
+  const applyFilters = useCallback((query: any) => {
     let q = query
     if (tierFilter !== 'all') q = q.eq('tier', tierFilter)
     if (statutFilter !== 'all') q = q.eq('statut_entreprise', statutFilter)
@@ -182,8 +206,11 @@ export default function Entreprises() {
     }
     if (amFilter !== 'all') q = q.eq('account_manager_id', amFilter)
     if (debouncedSearch.trim()) q = q.ilike('company_name', `%${debouncedSearch.trim()}%`)
+    if (sansContactActiveFilter && activeEntrepriseIds !== null && activeEntrepriseIds.length > 0) {
+      q = q.not('id', 'in', `(${activeEntrepriseIds.join(',')})`)
+    }
     return q
-  }
+  }, [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, sansContactActiveFilter, activeEntrepriseIds])
 
   const rpcParams = () => ({
     p_membre_id: restrictToMembreId!,
@@ -264,7 +291,7 @@ export default function Entreprises() {
         ).order('company_name', { ascending: true })
       ).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     },
-    [page, tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId]
+    [page, tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds]
   )
 
   const { data: countResult } = useSupabaseQuery<{ count: number }[]>(
@@ -278,7 +305,7 @@ export default function Entreprises() {
       )
       return { data: [{ count: res.count ?? 0 }], error: res.error }
     },
-    [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId]
+    [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds]
   )
 
   const totalCount = countResult?.[0]?.count ?? 0
@@ -335,6 +362,17 @@ export default function Entreprises() {
         >
           Client Digileads
         </button>
+
+        {userIsAdmin && (
+          <button
+            onClick={() => { setSansContactActiveFilter(v => !v); setActiveEntrepriseIds(null); setPage(0) }}
+            className={`h-8 rounded-lg border px-3 text-sm font-medium transition-colors ${
+              sansContactActiveFilter ? activeClass : 'border-input text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Sans contact activé
+          </button>
+        )}
 
         <SecteurMultiSelect
           values={secteurFilter}
