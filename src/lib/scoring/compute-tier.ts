@@ -1,6 +1,7 @@
 import type { CompanyTypology, SecteurDigi, IcpStatus, Tier } from '../types'
 
 const SECTEURS_PRIORITAIRES: SecteurDigi[] = ['Pharma/Santé', 'BAF']
+const SECTEURS_HORS_TIER: SecteurDigi[] = ['Concurrent', 'Public & Administrations']
 const TYPOLOGIES_HORS_TIER: CompanyTypology[] = ['TPE', 'Startup']
 
 /**
@@ -52,7 +53,7 @@ export interface TierResult {
  *
  * ICP = Non (→ Hors-Tier) :
  *  - Typology absente, TPE ou Startup
- *  - Secteur "Concurrent"
+ *  - Secteur "Concurrent" ou "Public & Administrations"
  *
  * ICP = Non spécifié (→ Tier 3) :
  *  - Typology éligible (Grand Groupe, ETI, PME) × Secteur absent
@@ -65,7 +66,7 @@ export function computeTier(
   typology: CompanyTypology | null,
   secteur: SecteurDigi | null,
 ): TierResult {
-  if (!typology || TYPOLOGIES_HORS_TIER.includes(typology) || secteur === 'Concurrent') {
+  if (!typology || TYPOLOGIES_HORS_TIER.includes(typology) || (secteur !== null && SECTEURS_HORS_TIER.includes(secteur))) {
     return { icp: 'Non', tier: 'Hors-Tier' }
   }
 

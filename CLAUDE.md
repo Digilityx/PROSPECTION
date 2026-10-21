@@ -258,7 +258,7 @@ Relation many-to-many entre contacts et membres.
 |-----------|------|-----|
 | `hors_cible = true` (positionné manuellement) | **Hors cible** | Non |
 | `company_typology` NULL, TPE ou Startup | Hors-Tier | Non |
-| `secteur_digi = 'Concurrent'` | Hors-Tier | Non |
+| `secteur_digi = 'Concurrent'` ou `'Public & Administrations'` | Hors-Tier | Non |
 | Typologie éligible × secteur NULL | Tier 3 | Non spécifié |
 | Secteur = Pharma/Santé ou BAF | **Tier 1** | Oui |
 | Autres secteurs ICP | **Tier 2** | Oui |
