@@ -144,7 +144,7 @@ export default function Entreprises() {
   function ensureAmList() {
     if (amFetchedRef.current) return
     amFetchedRef.current = true
-    supabase.from('membres_digilityx').select('id, full_name').eq('role', 'account_manager').eq('actif', true).order('full_name')
+    supabase.from('membres_digilityx').select('id, full_name').in('role', ['account_manager', 'admin']).eq('actif', true).order('full_name')
       .then(({ data }) => setAmList((data ?? []) as { id: string; full_name: string }[]))
   }
   useEffect(() => {

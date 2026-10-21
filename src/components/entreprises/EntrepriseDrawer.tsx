@@ -51,6 +51,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
         .from('entreprises')
         .select('id, company_name')
         .ilike('company_name', `%${parentSearch.trim()}%`)
+        .eq('is_parent_entity', true)
         .neq('id', entreprise?.id ?? '')
         .order('company_name')
         .limit(10)

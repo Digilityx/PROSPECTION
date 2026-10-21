@@ -167,23 +167,17 @@ Colonnes principales :
 
 Le champ `contact_digi` marque un contact comme **réservé** — contacts ciblés avant la création de l'app DigiLeads, exclus de la prospection active mais toujours visibles dans l'app.
 
-**Règles de visibilité par rôle :**
-
-| Rôle | Voit le contact | Voit le badge "Réservé" | Peut ouvrir le drawer |
-|------|----------------|------------------------|-----------------------|
-| `membre` | ✅ | ❌ | ❌ |
-| `account_manager` | ✅ | ✅ (badge orange) | ❌ |
-| `admin` | ✅ | ✅ (badge orange) | ✅ (peut cocher/décocher) |
-
 **Comportement UI :**
-- `contact_digi` est piloté automatiquement par la liste déroulante "Historique relationnel" dans le drawer : sélectionner "Réservé" passe `contact_digi = true`, tout autre choix le repasse à `false`.
-- Plus de case à cocher manuelle ni de bouton "Masquer les réservés".
+- "Réservé" est une valeur de la liste déroulante `historique_relationnel` dans le drawer — plus de badge séparé ni de logique de visibilité par rôle pour ce champ.
+- Sélectionner "Réservé" dans Historique relationnel passe `contact_digi = true` automatiquement ; tout autre choix le repasse à `false`.
+- Le badge s'affiche dans la colonne Historique de la liste contacts (badge ambre "Réservé") — visible par tous les rôles de la même façon.
 - Un filtre "Historique relationnel" est disponible dans la liste contacts (onglet Tout) pour filtrer par valeur.
 - En vue membre (scoped), les contacts réservés du réseau du membre sont chargés séparément (requête complémentaire, hors RPC) et ajoutés en fin de liste.
+- Le drawer reste accessible uniquement aux admins (`isAdmin` prop) — pas de restriction supplémentaire liée à `contact_digi`.
 
 **Règle d'import :** ne jamais écraser `contact_digi` sur un contact existant lors d'un import.
 
-**Nom de colonne :** `contact_digi` (interne) — le label UI est "Réservé". Pas besoin de renommer la colonne, les RPCs et triggers utilisent `contact_digi`.
+**Nom de colonne :** `contact_digi` (interne) — le label UI est "Réservé". Les RPCs et triggers utilisent `contact_digi`.
 
 ---
 
