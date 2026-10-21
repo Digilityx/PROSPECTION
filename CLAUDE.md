@@ -1,4 +1,4 @@
-# CLAUDE.md — DigiLeads (état au 08/10/2026)
+# CLAUDE.md — DigiLeads (état au 21/10/2026)
 
 ## Vue d'ensemble
 
@@ -643,9 +643,9 @@ WHERE cmr.contact_id = c.id
 ## 📊 Page `/membres` — détail des onglets (admin)
 
 ### Onglet "Contacts par Owner"
-Tableau des membres Digi triés par nombre de contacts dont ils sont owner. Colonnes : Membre, Contacts (total owner), puis une colonne par statut contact (Sélectionné, À contacter, Contacté, Rdv pris, Intéressé, Pas intéressé, Client à date, Client Digileads).
+Tableau des membres Digi triés par nombre de contacts dont ils sont owner. Colonnes : Membre, Sélectionné, **Total Contacts activés** (colonne distincte visuellement — somme de À contacter + Contacté + Rdv pris + Intéressé), puis les autres statuts (À contacter, Contacté, Rdv pris, Intéressé, Pas intéressé, Client à date, Client Digileads).
 
-**Filtres** : dropdown Statut (filtre par statut_contact) et dropdown Owner (filtre par membre). Les badges statut sont colorés selon la palette : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Rdv pris=teal, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy.
+**Filtres** : dropdown Statut (filtre par statut_contact) et dropdown Owner (filtre par membre). Pas de filtre par mois. Les badges statut sont colorés selon la palette : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Rdv pris=teal, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy.
 
 **Dates** : sous chaque badge statut s'affiche la date du dernier changement de statut (depuis `qualification_logs`), sauf pour "Sélectionné" qui a sa propre logique.
 

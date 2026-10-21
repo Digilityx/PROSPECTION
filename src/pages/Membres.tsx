@@ -205,6 +205,7 @@ Merci à tous les 2 pour votre aide 🙏`
 
 type Tab = 'owner' | 'tier' | 'membre_digi'
 
+
 export default function Membres() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('owner')
@@ -248,7 +249,7 @@ export default function Membres() {
   const { data: ownerStats = [], isLoading: loadingOwner } = useQuery<MembreStats[]>({
     queryKey: ['membres-owner-stats', membresCount],
     queryFn: async () => {
-      const { data: ownerRpc } = await supabase.rpc('get_owner_contact_stats')
+      const { data: ownerRpc } = await supabase.rpc('get_owner_contact_stats', {})
 
       const ownerLookup = new Map<string, Record<string, number>>()
       for (const row of (ownerRpc ?? []) as { owner_membre_id: string; statut_contact: string | null; cnt: number }[]) {
@@ -697,10 +698,20 @@ export default function Membres() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Membre</TableHead>
-                    <TableHead className="text-center w-[90px] whitespace-nowrap">{tab === 'owner' ? 'Contacts' : `Total ${label}`}</TableHead>
-                    {statuts.map(s => (
-                      <TableHead key={s} className="text-center text-xs">{s}</TableHead>
-                    ))}
+                    {tab !== 'owner' && <TableHead className="text-center w-[90px] whitespace-nowrap">{`Total ${label}`}</TableHead>}
+                    {tab === 'owner' ? (
+                      <>
+                        <TableHead className="text-center text-xs">Sélectionné</TableHead>
+                        <TableHead className="text-center text-xs font-semibold whitespace-nowrap border-l-2 border-border bg-muted/50">Total Contacts activés</TableHead>
+                        {STATUTS_CONTACT.filter(s => s !== 'Sélectionné').map(s => (
+                          <TableHead key={s} className="text-center text-xs">{s}</TableHead>
+                        ))}
+                      </>
+                    ) : (
+                      statuts.map(s => (
+                        <TableHead key={s} className="text-center text-xs">{s}</TableHead>
+                      ))
+                    )}
                     {tab === 'tier' && <TableHead className="text-center text-xs">À qualifier T1</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -737,18 +748,40 @@ export default function Membres() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center w-[80px]">
-                        <span className="font-bold">{m.total}</span>
-                      </TableCell>
-                      {statuts.map(s => (
-                        <TableCell key={s} className="text-center">
-                          {m.byStatut[s] > 0 ? (
-                            <span className="text-sm font-medium">{m.byStatut[s]}</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
+                      {tab !== 'owner' && (
+                        <TableCell className="text-center w-[80px]">
+                          <span className="font-bold">{m.total}</span>
                         </TableCell>
-                      ))}
+                      )}
+                      {tab === 'owner' ? (
+                        <>
+                          <TableCell className="text-center">
+                            {m.byStatut['Sélectionné'] > 0 ? <span className="text-sm font-medium">{m.byStatut['Sélectionné']}</span> : <span className="text-xs text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center border-l-2 border-border bg-muted/30">
+                            {(() => {
+                              const ACTIVES = ['À contacter', 'Contacté', 'Rdv pris', 'Intéressé']
+                              const t = ACTIVES.reduce((acc, s) => acc + (m.byStatut[s] ?? 0), 0)
+                              return t > 0 ? <span className="text-sm font-semibold">{t}</span> : <span className="text-xs text-muted-foreground">—</span>
+                            })()}
+                          </TableCell>
+                          {STATUTS_CONTACT.filter(s => s !== 'Sélectionné').map(s => (
+                            <TableCell key={s} className="text-center">
+                              {m.byStatut[s] > 0 ? <span className="text-sm font-medium">{m.byStatut[s]}</span> : <span className="text-xs text-muted-foreground">—</span>}
+                            </TableCell>
+                          ))}
+                        </>
+                      ) : (
+                        statuts.map(s => (
+                          <TableCell key={s} className="text-center">
+                            {m.byStatut[s] > 0 ? (
+                              <span className="text-sm font-medium">{m.byStatut[s]}</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        ))
+                      )}
                       {tab === 'tier' && (
                         <TableCell className="text-center">
                           {m.unqualifiedTier1 > 0 ? (
@@ -862,40 +895,46 @@ export default function Membres() {
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell />{/* Dont owner */}
-                                {statuts.map(s => (
+                                {/* Sélectionné */}
+                                <TableCell className="text-center">
+                                  {c.statut_contact === 'Sélectionné' ? (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <Badge className={`text-xs ${STATUT_CONTACT_CLASS['Sélectionné'] ?? 'bg-muted text-muted-foreground'}`}>Sélectionné</Badge>
+                                      {(() => {
+                                        if (relanceDate) {
+                                          return (
+                                            <div className="flex flex-col items-center gap-0.5">
+                                              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                                <Check className="h-3 w-3" /> Message envoyé
+                                              </span>
+                                              <span className="text-xs text-muted-foreground">{relativeTime(relanceDate)}</span>
+                                            </div>
+                                          )
+                                        }
+                                        return (
+                                          <button
+                                            type="button"
+                                            onClick={() => setContactSlackPreview({ contact: c, ownerId: m.id, message: buildContactSlackMessage(owner?.full_name ?? '', c) })}
+                                            className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-xs hover:bg-accent transition-colors"
+                                          >
+                                            Message à envoyer
+                                          </button>
+                                        )
+                                      })()}
+                                    </div>
+                                  ) : null}
+                                </TableCell>
+                                {/* Total Contacts activés */}
+                                <TableCell className="border-l-2 border-border bg-muted/30" />
+                                {/* Remaining statuts */}
+                                {STATUTS_CONTACT.filter(s => s !== 'Sélectionné').map(s => (
                                   <TableCell key={s} className="text-center">
                                     {c.statut_contact === s ? (
                                       <div className="flex flex-col items-center gap-1">
-                                        <Badge
-                                          className={`text-xs ${STATUT_CONTACT_CLASS[s] ?? 'bg-muted text-muted-foreground'}`}
-                                        >
-                                          {s}
-                                        </Badge>
-                                        {s !== 'Sélectionné' && c.statut_contact_changed_at && (
+                                        <Badge className={`text-xs ${STATUT_CONTACT_CLASS[s] ?? 'bg-muted text-muted-foreground'}`}>{s}</Badge>
+                                        {c.statut_contact_changed_at && (
                                           <span className="text-xs text-muted-foreground">{relativeTime(c.statut_contact_changed_at)}</span>
                                         )}
-                                        {s === 'Sélectionné' && (() => {
-                                            if (relanceDate) {
-                                              return (
-                                                <div className="flex flex-col items-center gap-0.5">
-                                                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                                                    <Check className="h-3 w-3" /> Message envoyé
-                                                  </span>
-                                                  <span className="text-xs text-muted-foreground">{relativeTime(relanceDate)}</span>
-                                                </div>
-                                              )
-                                            }
-                                            return (
-                                              <button
-                                                type="button"
-                                                onClick={() => setContactSlackPreview({ contact: c, ownerId: m.id, message: buildContactSlackMessage(owner?.full_name ?? '', c) })}
-                                                className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-xs hover:bg-accent transition-colors"
-                                              >
-                                                Message à envoyer
-                                              </button>
-                                            )
-                                          })()}
                                       </div>
                                     ) : null}
                                   </TableCell>
@@ -909,7 +948,7 @@ export default function Membres() {
                   ))}
                   {stats.filter(m => m.total === 0).length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={statuts.length + 2 + (tab === 'tier' ? 1 : 0)} className="text-center text-sm text-muted-foreground py-3">
+                      <TableCell colSpan={statuts.length + 2 + (tab === 'tier' ? 1 : 0) + (tab === 'owner' ? 1 : 0)} className="text-center text-sm text-muted-foreground py-3">
                         {stats.filter(m => m.total === 0).length} membres sans {label}
                       </TableCell>
                     </TableRow>

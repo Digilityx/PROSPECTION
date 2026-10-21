@@ -72,7 +72,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
   }, [])
 
   const { data: membres } = useSupabaseQuery<MembreOption[]>(
-    () => supabase.from('membres_digilityx').select('id, full_name').eq('actif', true).order('full_name')
+    () => supabase.from('membres_digilityx').select('id, full_name').eq('actif', true).in('role', ['account_manager', 'admin']).order('full_name')
   )
 
   // Auto-compute tier from typology + secteur
