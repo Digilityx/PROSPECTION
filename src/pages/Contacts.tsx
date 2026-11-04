@@ -247,7 +247,7 @@ export default function Contacts() {
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
       if (personaFilter !== 'all') query = query.eq('persona', personaFilter)
-      if (relationFilter !== 'all') query = query.eq('niveau_de_relation', relationFilter)
+      if (relationFilter !== 'all') query = query.eq('best_niveau_relation', relationFilter)
       if (amFilter !== 'all') query = query.eq('entreprises.account_manager_id', amFilter)
       if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
       if (debouncedSearch.trim()) {
@@ -326,7 +326,7 @@ export default function Contacts() {
       if (statutFilter !== 'all') query = query.eq('statut_contact', statutFilter)
       if (ownerFilter !== 'all') query = query.eq('owner_membre_id', ownerFilter)
       if (personaFilter !== 'all') query = query.eq('persona', personaFilter)
-      if (relationFilter !== 'all') query = query.eq('niveau_de_relation', relationFilter)
+      if (relationFilter !== 'all') query = query.eq('best_niveau_relation', relationFilter)
       if (tierFilter !== 'all') query = query.eq('entreprises.tier', tierFilter)
       if (amFilter !== 'all') query = query.eq('entreprises.account_manager_id', amFilter)
       if (needsEntrepriseJoin) query = query.limit(0)
@@ -448,14 +448,14 @@ export default function Contacts() {
           </SelectContent>
         </Select>
 
-        {scoped && (
+        <>
           <Select value={relationFilter} onValueChange={(v) => { setRelationFilter(v as string); setPage(0) }}>
             <SelectTrigger className={relationFilter !== 'all' ? activeClass : ''}>
               <SelectValue>{relationFilter === 'all' ? 'Relation' : relationFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false} collisionAvoidance={{ side: 'none' }} className="min-w-[320px]">
               <SelectItem value="all">Toute relation</SelectItem>
-              {(['Non renseigné','Ami','Cercle familial','Ancien collègue','Alumni','Partenaire business','Connaissance','Inconnu'] as NiveauRelation[]).map(level => (
+              {(['Ami','Cercle familial','Partenaire business','Ancien collègue','Alumni','Connaissance','Inconnu','Non renseigné'] as NiveauRelation[]).map(level => (
                 <SelectItem
                   key={level}
                   value={level}
@@ -471,7 +471,7 @@ export default function Contacts() {
               ))}
             </SelectContent>
           </Select>
-        )}
+        </>
 
         {scoped && unqualifiedCount > 0 && (
           <Button
