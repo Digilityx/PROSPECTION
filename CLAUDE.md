@@ -115,6 +115,7 @@ Colonnes principales :
 | `company_website_from_linkedin` | TEXT | |
 | `company_description` / `company_specialties` | TEXT | |
 | `source_acquisition` | TEXT | |
+| `google_doc_url` | TEXT | **Signal d'affaire** — 1 lien Google Doc (https://docs.google.com/ ou https://drive.google.com/, contrainte CHECK). Visible sur tous les contacts rattachés. Édition admin uniquement (trigger `restrict_google_doc_url_to_admin`). |
 | `justification` | TEXT | |
 | `scoring_icp` | INTEGER | |
 | `created_at` / `updated_at` | TIMESTAMPTZ | |
@@ -152,6 +153,7 @@ Colonnes principales :
 | `contact_digi` | BOOLEAN | **Contact réservé** — piloté automatiquement par `historique_relationnel` : `true` si `historique_relationnel = 'Réservé'`, `false` sinon. Plus de case à cocher manuelle. |
 | `statut_contact` | TEXT | `Sélectionné` \| `À contacter` \| `Contacté` \| `Rdv pris` \| `Intéressé` \| `Pas intéressé` \| `Client à date` \| `Client Digileads` — chaque changement est loggué automatiquement dans `qualification_logs` |
 | `historique_relationnel` | TEXT | `Jamais contacté` \| `Réservé` \| `Deal en cours` \| `Mission en cours` \| `A recontacter N+1` \| `En attente de retour` \| `Ancien client Digi` \| `Contact non pertinent` \| `A quitté l'entreprise` \| `A changé de poste` — qualifié manuellement dans le drawer. Sélectionner "Réservé" met automatiquement `contact_digi = true`. |
+| `google_doc_url` | TEXT | **Signal d'affaire** du contact — 1 lien Google Doc (même contrainte et même restriction admin que sur `entreprises`). Le contact affiche aussi le lien de son entreprise (lecture seule, non copié). |
 | `last_message_sent_at` | TIMESTAMPTZ | Date du dernier "Message à envoyer" marqué comme envoyé pour ce contact (depuis la vue Contacts par Owner). |
 | `niveau_de_relation` | TEXT | Valeur cache — maintenue par trigger depuis `contacts_membres_relations`. Le filtre « Relation » de la vue globale n'utilise PAS cette colonne mais `best_niveau_relation` (voir ci-dessous). |
 | `scoring` | INTEGER | Calculé automatiquement par trigger (max 100) |
@@ -323,6 +325,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 | `sync_partager_contacts_on_depart` | BEFORE UPDATE `actif` sur `membres_digilityx` | Force `partager_contacts = false` si `actif → false` |
 | `recompute_contact_masque` | AFTER INSERT/UPDATE/DELETE sur `contacts_membres_relations` | Recalcule `masque` sur le contact |
 | `trg_membre_partager_recompute_masque` | AFTER UPDATE `partager_contacts` sur `membres_digilityx` | Recalcule `masque` sur tous les contacts du membre |
+| `restrict_google_doc_url_to_admin` (`trg_restrict_google_doc_url`) | BEFORE INSERT/UPDATE `google_doc_url` sur `entreprises` et `contacts` | Refuse la modification si l'utilisateur connecté n'est pas admin (service role / SQL editor autorisés) |
 | `log_statut_contact_change` (`trg_log_statut_contact_change`) | AFTER UPDATE `statut_contact` sur `contacts` | Insère une ligne dans `qualification_logs` à chaque changement de statut |
 
 ### RPCs (appelées depuis le frontend)
@@ -672,7 +675,9 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 
 ## 📋 Page `/contacts` — détail
 
-**Colonnes du tableau :** Contact, Entreprise, Statut, Historique, Relation (scoped uniquement), Digi, Score.
+**Colonnes du tableau :** Contact, Entreprise, Statut, Historique, **Signal**, Relation (scoped uniquement), Digi, Score.
+
+**Colonne Signal (signal d'affaire) :** pastille bleue cliquable (nouvel onglet) si le contact et/ou son entreprise a un Google Doc (« Ent. » / « Contact » si les deux). Visible par tous les rôles ; liens chargés par requête complémentaire sur les ids de la page (les RPC ne sont pas modifiées). Le drawer contact (admin) permet d'éditer le lien du contact et affiche celui de l'entreprise en lecture seule. Pas de filtre « avec signal ».
 
 **Badges colorés :**
 - `statut_contact` : Sélectionné=rouge foncé, À contacter=bleu, Contacté=ambre, Rdv pris=teal, Intéressé=vert, Pas intéressé=gris, Client à date=violet, Client Digileads=navy
@@ -685,6 +690,8 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 ## 🏢 Page `/entreprises` — détail
 
 **Filtres disponibles :** Tier (inclut "Hors cible"), bouton toggle **Client Digileads**, Secteur (multi-select), Account Manager. Bouton "Effacer" si filtre actif.
+
+**Colonne Signal :** pastille « Doc » cliquable si `google_doc_url` renseigné, visible par tous les rôles. Le lien s'édite dans le drawer entreprise (admin), section « Signal d'affaire ».
 
 **Logo ⚡ (Zap ambre)** affiché sur les lignes dont `statut_entreprise = 'Devenu client Digileads'`. Remplace l'ancien DigiIcon (qui était basé sur `is_digi_client` / `statut_digi`).
 

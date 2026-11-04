@@ -12,6 +12,7 @@ import {
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
+import { SignalBadge } from '@/components/SignalAffaire'
 import { ContactDrawer } from '@/components/contacts/ContactDrawer'
 import { EntrepriseDrawer } from '@/components/entreprises/EntrepriseDrawer'
 import type { Entreprise } from '@/lib/types'
@@ -393,6 +394,27 @@ export default function Contacts() {
     ? [...(contacts ?? []), ...(reservedForMembre ?? [])]
     : (contacts ?? [])
 
+  // Signal d'affaire : liens Google Doc du contact et de son entreprise (requête complémentaire, hors RPC)
+  const docIdsKey = allContacts.map(c => c.id).join(',')
+  const { data: docLinks } = useQuery({
+    queryKey: ['contacts-doc-links', docIdsKey],
+    enabled: allContacts.length > 0,
+    queryFn: async () => {
+      const contactIds = allContacts.map(c => c.id)
+      const entIds = [...new Set(allContacts.map(c => c.entreprise_id).filter(Boolean))] as string[]
+      const [cRes, eRes] = await Promise.all([
+        supabase.from('contacts').select('id, google_doc_url').in('id', contactIds).not('google_doc_url', 'is', null),
+        entIds.length
+          ? supabase.from('entreprises').select('id, google_doc_url').in('id', entIds).not('google_doc_url', 'is', null)
+          : Promise.resolve({ data: [] as { id: string; google_doc_url: string | null }[] }),
+      ])
+      return {
+        contact: new Map((cRes.data ?? []).map(r => [r.id, r.google_doc_url as string])),
+        entreprise: new Map((eRes.data ?? []).map(r => [r.id, r.google_doc_url as string])),
+      }
+    },
+  })
+
   return (
     <div className="space-y-4">
       <div>
@@ -597,7 +619,7 @@ export default function Contacts() {
             <TableBody>
               {Array.from({ length: 10 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: scoped ? 7 : 6 }).map((_, j) => (
+                  {Array.from({ length: scoped ? 8 : 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-muted rounded animate-pulse" />
                     </TableCell>
@@ -625,6 +647,7 @@ export default function Contacts() {
                   <TableHead>Entreprise</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead>Historique</TableHead>
+                  <TableHead className="text-center">Signal</TableHead>
                   {scoped && <TableHead><RelationHeader /></TableHead>}
                   <TableHead className="text-center">Digi</TableHead>
                   <TableHead className="text-center">
@@ -703,6 +726,12 @@ export default function Contacts() {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <SignalBadge
+                          contact={docLinks?.contact.get(c.id)}
+                          entreprise={c.entreprise_id ? docLinks?.entreprise.get(c.entreprise_id) : null}
+                        />
                       </TableCell>
                       {scoped && (() => {
                       const currentRelation = relationOverrides[c.id] ?? c.niveau_de_relation ?? 'Non renseigné'

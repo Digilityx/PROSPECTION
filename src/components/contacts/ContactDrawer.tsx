@@ -5,6 +5,7 @@ import { Drawer, FieldGroup, SelectField, TextField } from '@/components/ui/draw
 import { Button } from '@/components/ui/button'
 import { scoreContact } from '@/lib/scoring/score-contact'
 import { DigiIcon } from '@/components/icons/DigiIcon'
+import { DocLinkButton, isValidGoogleDocUrl } from '@/components/SignalAffaire'
 import {
   NIVEAU_RELATION_DESCRIPTIONS,
   type Persona, type Hierarchie, type StatutContact, type NiveauRelation, type HistoriqueRelationnel,
@@ -67,6 +68,7 @@ interface EntrepriseOption {
   id: string
   company_name: string
   is_digi_client?: boolean
+  google_doc_url?: string | null
   account_manager?: { id: string; full_name: string } | null
 }
 
@@ -96,6 +98,10 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
   const [contactDigi, setContactDigi] = useState(false)
   const [isDiGiEmployee, setIsDiGiEmployee] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [googleDocUrl, setGoogleDocUrl] = useState('')
+  const [savedGoogleDocUrl, setSavedGoogleDocUrl] = useState<string | null>(null)
+  const [entrepriseDocUrl, setEntrepriseDocUrl] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Owner
   const [ownerMembreId, setOwnerMembreId] = useState<string | null>(null)
@@ -130,6 +136,8 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
       setHistoriqueRelationnel(contact.historique_relationnel)
       setContactDigi(contact.historique_relationnel === 'Réservé')
       setIsDiGiEmployee(contact.is_digi_employee)
+      setSaveError(null)
+      setEntrepriseDocUrl(null)
       setEntrepriseId(contact.entreprise_id)
       setRelationChanges({})
       setEntrepriseSearch('')
@@ -148,7 +156,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
           .order('niveau_de_relation'),
         supabase
           .from('contacts')
-          .select('owner_membre_id')
+          .select('owner_membre_id, google_doc_url')
           .eq('id', contact.id)
           .single(),
         supabase
@@ -159,17 +167,20 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
         contact.entreprise_id
           ? supabase
               .from('entreprises')
-              .select('id, company_name, is_digi_client, account_manager:account_manager_id(id, full_name)')
+              .select('id, company_name, is_digi_client, google_doc_url, account_manager:account_manager_id(id, full_name)')
               .eq('id', contact.entreprise_id)
               .single()
           : Promise.resolve({ data: null }),
       ]).then(([relRes, ownerRes, membresRes, entRes]) => {
         setRelations((relRes.data ?? []) as unknown as RelationRow[])
         setOwnerMembreId(ownerRes.data?.owner_membre_id ?? null)
+        setGoogleDocUrl(ownerRes.data?.google_doc_url ?? '')
+        setSavedGoogleDocUrl(ownerRes.data?.google_doc_url ?? null)
         setMembres((membresRes.data ?? []) as MembreOption[])
         if (entRes.data) {
           const ent = entRes.data as unknown as EntrepriseOption
           setLinkedEntrepriseName(ent.company_name)
+          setEntrepriseDocUrl(ent.google_doc_url ?? null)
           setLinkedEntrepriseIsDigi(ent.is_digi_client ?? false)
           setLinkedEntrepriseAM((ent.account_manager as { full_name: string } | null)?.full_name ?? null)
         }
@@ -236,12 +247,16 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
     historiqueRelationnel !== contact.historique_relationnel ||
     (historiqueRelationnel === 'Réservé') !== contact.contact_digi ||
     ownerMembreId !== (contact.owner_membre_id ?? null) ||
-    entrepriseId !== contact.entreprise_id
+    entrepriseId !== contact.entreprise_id ||
+    (googleDocUrl.trim() || null) !== savedGoogleDocUrl
+  const docUrlInvalid = googleDocUrl.trim() !== '' && !isValidGoogleDocUrl(googleDocUrl)
   const hasChanges = hasFieldChanges || hasRelationChanges
 
   async function handleSave() {
     if (!contact) return
+    if (docUrlInvalid) { setSaveError('Le lien doit commencer par https://docs.google.com/ ou https://drive.google.com/'); return }
     setSaving(true)
+    setSaveError(null)
 
     // Save relation changes
     const relationPromises = Object.entries(relationChanges).map(([relationId, niveau]) =>
@@ -264,11 +279,17 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
         is_digi_employee: isDiGiEmployee,
         owner_membre_id: ownerMembreId || null,
         entreprise_id: entrepriseId || null,
+        google_doc_url: googleDocUrl.trim() || null,
         scoring: previewScore.total,
       })
       .eq('id', contact.id)
 
-    await Promise.all([contactPromise, ...relationPromises])
+    const [contactRes] = await Promise.all([contactPromise, ...relationPromises])
+    if (contactRes.error) {
+      setSaving(false)
+      setSaveError(contactRes.error.message)
+      return
+    }
 
     // Auto-update entreprise status based on best contact status
     const resolvedEntrepriseId = entrepriseId || contact.entreprise_id
@@ -328,14 +349,17 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
       onClose={onClose}
       title={`${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() || 'Contact'}
       footer={
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges || saving}
-          className="w-full"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          Enregistrer
-        </Button>
+        <div className="space-y-2">
+          {saveError && <p className="text-xs text-red-600 dark:text-red-400 text-center">{saveError}</p>}
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges || saving || docUrlInvalid}
+            className="w-full"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            Enregistrer
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
@@ -359,6 +383,37 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
             >
               Voir sur LinkedIn <ExternalLink className="h-3 w-3" />
             </a>
+          )}
+        </div>
+
+        {/* Signal d'affaire */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Signal d'affaire</h3>
+          {adminMode ? (
+            <>
+              <FieldGroup label="Google Doc du contact">
+                <input
+                  type="url"
+                  value={googleDocUrl}
+                  onChange={e => setGoogleDocUrl(e.target.value)}
+                  placeholder="https://docs.google.com/document/d/…"
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+              </FieldGroup>
+              {docUrlInvalid && (
+                <p className="text-xs text-red-600 dark:text-red-400">Lien Google Docs / Drive attendu (https://docs.google.com/… ou https://drive.google.com/…)</p>
+              )}
+            </>
+          ) : (
+            savedGoogleDocUrl && <DocLinkButton label="Doc du contact" url={savedGoogleDocUrl} />
+          )}
+          {entrepriseDocUrl ? (
+            <div>
+              <DocLinkButton label={`Doc entreprise${linkedEntrepriseName ? ` (${linkedEntrepriseName})` : ''}`} url={entrepriseDocUrl} />
+              {adminMode && <p className="text-xs text-muted-foreground">Lien porté par la fiche entreprise — modifiable depuis celle-ci.</p>}
+            </div>
+          ) : (
+            !savedGoogleDocUrl && !adminMode && <p className="text-xs text-muted-foreground">Aucun doc renseigné.</p>
           )}
         </div>
 

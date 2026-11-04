@@ -13,6 +13,7 @@ import {
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
+import { SignalBadge } from '@/components/SignalAffaire'
 import { EntrepriseDrawer } from '@/components/entreprises/EntrepriseDrawer'
 import { useAuth, isAdmin } from '@/lib/auth'
 import type { Entreprise, Tier } from '@/lib/types'
@@ -294,6 +295,24 @@ export default function Entreprises() {
     [page, tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds]
   )
 
+  // Signal d'affaire : liens Google Doc de la page courante (requête complémentaire, hors RPC)
+  const [docUrls, setDocUrls] = useState<Map<string, string>>(new Map())
+  const docIdsKey = (entreprises ?? []).map(e => e.id).join(',')
+  useEffect(() => {
+    if (!docIdsKey) { setDocUrls(new Map()); return }
+    let cancelled = false
+    supabase
+      .from('entreprises')
+      .select('id, google_doc_url')
+      .in('id', docIdsKey.split(','))
+      .not('google_doc_url', 'is', null)
+      .then(({ data }) => {
+        if (cancelled) return
+        setDocUrls(new Map((data ?? []).map(r => [r.id as string, r.google_doc_url as string])))
+      })
+    return () => { cancelled = true }
+  }, [docIdsKey])
+
   const { data: countResult } = useSupabaseQuery<{ count: number }[]>(
     async () => {
       if (restrictToMembreId) {
@@ -426,13 +445,14 @@ export default function Entreprises() {
                 <TableHead className="w-[8%]">Tier</TableHead>
                 <TableHead className="w-[12%]">AM</TableHead>
                 <TableHead className="w-[7%]">ICP</TableHead>
+                <TableHead className="w-[7%] text-center">Signal</TableHead>
                 <TableHead className="w-[8%]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {Array.from({ length: 10 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-muted rounded animate-pulse" />
                     </TableCell>
@@ -463,6 +483,7 @@ export default function Entreprises() {
                   <TableHead className="w-[8%]">Tier</TableHead>
                   <TableHead className="w-[12%]">AM</TableHead>
                   <TableHead className="w-[7%]">ICP</TableHead>
+                  <TableHead className="w-[7%] text-center">Signal</TableHead>
                   <TableHead className="w-[8%]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -471,7 +492,7 @@ export default function Entreprises() {
                   <TableRow
                     key={e.id}
                     className={userIsAdmin ? 'cursor-pointer' : ''}
-                    onClick={() => userIsAdmin && setSelected(e)}
+                    onClick={() => userIsAdmin && setSelected({ ...e, google_doc_url: docUrls.get(e.id) ?? null })}
                   >
                     <TableCell className="max-w-[250px]">
                       <div className="flex items-center gap-2">
@@ -533,6 +554,9 @@ export default function Entreprises() {
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${e.icp ? 'bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-muted text-muted-foreground'}`}>
                         {e.icp ? 'Oui' : 'Non'}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <SignalBadge entreprise={docUrls.get(e.id)} />
                     </TableCell>
                     <TableCell>
                       <Link

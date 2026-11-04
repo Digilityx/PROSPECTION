@@ -5,6 +5,7 @@ import { Drawer, FieldGroup, SelectField } from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
 import { useSupabaseQuery } from '@/lib/hooks/use-supabase'
 import { computeTier } from '@/lib/scoring/compute-tier'
+import { isValidGoogleDocUrl } from '@/components/SignalAffaire'
 import type {
   Entreprise, SecteurDigi, CompanyTypology,
 } from '@/lib/types'
@@ -35,6 +36,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
   const [isParentEntity, setIsParentEntity] = useState(false)
   const [sourceAcquisition, setSourceAcquisition] = useState<string | null>(null)
   const [horsCible, setHorsCible] = useState(false)
+  const [googleDocUrl, setGoogleDocUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -91,6 +93,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
       setIsParentEntity(entreprise.is_parent_entity)
       setSourceAcquisition(entreprise.source_acquisition)
       setHorsCible(entreprise.hors_cible ?? false)
+      setGoogleDocUrl(entreprise.google_doc_url ?? '')
       setParentSearch('')
       setParentCompanyName(null)
       // Fetch parent name if exists
@@ -114,10 +117,14 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
     parentCompanyId !== entreprise.parent_company_id ||
     isParentEntity !== entreprise.is_parent_entity ||
     sourceAcquisition !== entreprise.source_acquisition ||
-    horsCible !== (entreprise.hors_cible ?? false)
+    horsCible !== (entreprise.hors_cible ?? false) ||
+    (googleDocUrl.trim() || null) !== (entreprise.google_doc_url ?? null)
+
+  const docUrlInvalid = googleDocUrl.trim() !== '' && !isValidGoogleDocUrl(googleDocUrl)
 
   async function handleSave() {
     if (!entreprise) return
+    if (docUrlInvalid) { setSaveError('Le lien doit commencer par https://docs.google.com/ ou https://drive.google.com/'); return }
     setSaving(true)
     setSaveError(null)
     const { error } = await supabase
@@ -131,6 +138,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
         is_subsidiary: !!parentCompanyId,
         is_parent_entity: isParentEntity,
         source_acquisition: sourceAcquisition || null,
+        google_doc_url: googleDocUrl.trim() || null,
       })
       .eq('id', entreprise.id)
     setSaving(false)
@@ -152,7 +160,7 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
           )}
           <Button
             onClick={handleSave}
-            disabled={!hasChanges || saving}
+            disabled={!hasChanges || saving || docUrlInvalid}
             className="w-full"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
@@ -192,6 +200,30 @@ export function EntrepriseDrawer({ entreprise, onClose, onSaved }: Props) {
           {entreprise.justification && (
             <p className="text-sm text-muted-foreground italic">{entreprise.justification}</p>
           )}
+        </div>
+
+        {/* Signal d'affaire */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Signal d'affaire</h3>
+          <FieldGroup label="Google Doc">
+            <input
+              type="url"
+              value={googleDocUrl}
+              onChange={e => setGoogleDocUrl(e.target.value)}
+              placeholder="https://docs.google.com/document/d/…"
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </FieldGroup>
+          {docUrlInvalid && (
+            <p className="text-xs text-red-600 dark:text-red-400">Lien Google Docs / Drive attendu (https://docs.google.com/… ou https://drive.google.com/…)</p>
+          )}
+          {entreprise.google_doc_url && (
+            <a href={entreprise.google_doc_url} target="_blank" rel="noopener noreferrer"
+               className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+              Ouvrir le doc <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          <p className="text-xs text-muted-foreground">Visible sur la fiche et la liste de tous les contacts rattachés à cette entreprise.</p>
         </div>
 
         {/* Editable fields */}

@@ -132,6 +132,7 @@ export interface Entreprise {
   tier: Tier | null
   statut_entreprise: StatutEntreprise | null
   source_acquisition: string | null
+  google_doc_url: string | null
   created_at: string
   updated_at: string
 }
@@ -173,6 +174,7 @@ export interface Contact {
   /** CACHED — maintained by trigger from contacts_membres_relations */
   nb_personnes_digi_relation: number
   owner_membre_id: string | null
+  google_doc_url: string | null
   query: string | null
   created_at: string
   updated_at: string
