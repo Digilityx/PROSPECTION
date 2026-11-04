@@ -448,6 +448,7 @@ auth_user_id             UUID  -- lié à auth.users.id de Supabase Auth
 role                     TEXT  -- 'admin' | 'account_manager' | 'membre'
 actif                    BOOLEAN DEFAULT true
 partager_contacts        BOOLEAN DEFAULT true
+pole                     TEXT  -- 'Associés' | 'Design' | 'Produit' | 'Marketing' | 'Transverse' (1 seul pôle par membre, NULL = sans pôle). Renseigné directement en base (SQL), pas modifiable dans l'appli. Non affiché en colonne ; utilisé par le filtre de Membres Digi → Contacts par Owner : « Tous les pôles » y restreint aussi la liste des owners.
 slack_user_id            TEXT   -- identifiant Slack format U... (ex: U017Z701THU)
 last_slack_nudge_at      TIMESTAMPTZ  -- dernière relance Slack "qualifier tes contacts" (Vue Tier / Vue Membre Digi)
 last_relance_contact_at  TIMESTAMPTZ  -- colonne conservée en base mais plus utilisée côté frontend (remplacée par contacts.last_message_sent_at)

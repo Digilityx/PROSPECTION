@@ -17,6 +17,7 @@ import { NIVEAU_RELATION_DESCRIPTIONS, type NiveauRelation } from '@/lib/types'
 interface MembreStats {
   id: string
   full_name: string
+  pole?: string | null
   total: number
   totalReseau: number
   byStatut: Record<string, number>
@@ -29,7 +30,10 @@ type MemberItem = {
   full_name: string
   slack_user_id: string | null
   last_slack_nudge_at: string | null
+  pole: string | null
 }
+
+const POLES = ['Associés', 'Design', 'Produit', 'Marketing', 'Transverse'] as const
 
 const APP_URL = 'https://prospection-blond-theta.vercel.app'
 
@@ -208,6 +212,7 @@ type Tab = 'owner' | 'tier' | 'membre_digi'
 
 export default function Membres() {
   const queryClient = useQueryClient()
+  const [ownerPoleFilter, setOwnerPoleFilter] = useState<string>('all')
   const [tab, setTab] = useState<Tab>('owner')
   const [tierOnlyUnqualified, setTierOnlyUnqualified] = useState(false)
   const [ownerStatutFilter, setOwnerStatutFilter] = useState<string>('all')
@@ -235,7 +240,7 @@ export default function Membres() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('membres_digilityx')
-        .select('id, full_name, slack_user_id, last_slack_nudge_at')
+        .select('id, full_name, slack_user_id, last_slack_nudge_at, pole')
         .eq('actif', true)
         .eq('partager_contacts', true)
         .order('full_name')
@@ -271,7 +276,7 @@ export default function Membres() {
         return { ...m, total, totalReseau: 0, byStatut, unqualifiedTier1: 0, totalTier1: 0 }
       })
 
-      return results.sort((a, b) => b.total - a.total)
+      return results.sort((a, b) => a.full_name.localeCompare(b.full_name, 'fr', { sensitivity: 'base' }))
     },
     enabled: allMembres.length > 0,
   })
@@ -312,7 +317,7 @@ export default function Membres() {
       })
 
       // Sort by Tier 1 desc
-      return stats.sort((a, b) => (b.byStatut['Tier 1'] ?? 0) - (a.byStatut['Tier 1'] ?? 0))
+      return stats.sort((a, b) => a.full_name.localeCompare(b.full_name, 'fr', { sensitivity: 'base' }))
     },
     enabled: allMembres.length > 0,
   })
@@ -612,12 +617,23 @@ export default function Membres() {
                 ))}
               </select>
               <select
+                value={ownerPoleFilter}
+                onChange={e => { setOwnerPoleFilter(e.target.value); setOwnerMemberFilter('all') }}
+                className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground outline-none focus-visible:border-ring"
+              >
+                <option value="all">Tous les pôles</option>
+                {POLES.map(po => (
+                  <option key={po} value={po}>{po}</option>
+                ))}
+                <option value="none">Sans pôle</option>
+              </select>
+              <select
                 value={ownerMemberFilter}
                 onChange={e => setOwnerMemberFilter(e.target.value)}
                 className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground outline-none focus-visible:border-ring"
               >
                 <option value="all">Tous les owners</option>
-                {allMembres.map(m => (
+                {allMembres.filter(m => ownerPoleFilter === 'all' || (ownerPoleFilter === 'none' ? !m.pole : m.pole === ownerPoleFilter)).map(m => (
                   <option key={m.id} value={m.id}>{m.full_name}</option>
                 ))}
               </select>
@@ -716,7 +732,7 @@ export default function Membres() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stats.filter(m => m.total > 0 && (!tierOnlyUnqualified || m.unqualifiedTier1 > 0) && (tab !== 'owner' || (ownerMemberFilter === 'all' || m.id === ownerMemberFilter)) && (tab !== 'owner' || ownerStatutFilter === 'all' || (m.byStatut[ownerStatutFilter] ?? 0) > 0)).map(m => (
+                  {stats.filter(m => m.total > 0 && (!tierOnlyUnqualified || m.unqualifiedTier1 > 0) && (tab !== 'owner' || (ownerMemberFilter === 'all' || m.id === ownerMemberFilter)) && (tab !== 'owner' || ownerPoleFilter === 'all' || (ownerPoleFilter === 'none' ? !m.pole : m.pole === ownerPoleFilter)) && (tab !== 'owner' || ownerStatutFilter === 'all' || (m.byStatut[ownerStatutFilter] ?? 0) > 0)).map(m => (
                     <React.Fragment key={m.id}>
                     <TableRow>
                       <TableCell className="font-medium">
