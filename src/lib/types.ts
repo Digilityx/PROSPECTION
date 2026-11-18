@@ -125,6 +125,8 @@ export interface Entreprise {
   parent_company_id: string | null
   is_subsidiary: boolean
   is_parent_entity: boolean
+  /** Coquille : maison mère créée uniquement pour rattacher des filiales, données à compléter */
+  is_stub: boolean
   company_website_from_linkedin: string | null
   company_description: string | null
   company_specialties: string | null

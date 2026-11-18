@@ -137,6 +137,8 @@ export default function Entreprises() {
     searchParams.get('sans_contact_active') === 'true'
   )
   const [activeEntrepriseIds, setActiveEntrepriseIds] = useState<string[] | null>(null)
+  // Coquilles (maisons mères sans données, is_stub) : masquées par défaut, visibles via le filtre « À enrichir » (admin)
+  const [stubFilter, setStubFilter] = useState(false)
   const [selected, setSelected] = useState<Entreprise | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -156,7 +158,7 @@ export default function Entreprises() {
     if (amFilter !== 'all') ensureAmList()
   }, [amFilter])
 
-  const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || amFilter !== 'all' || sansContactActiveFilter || search.trim() !== ''
+  const hasActiveFilters = tierFilter !== 'all' || statutFilter !== 'all' || secteurFilter.length > 0 || amFilter !== 'all' || sansContactActiveFilter || stubFilter || search.trim() !== ''
   const activeClass = 'border-[#050d2b] bg-[#050d2b]/10 text-[#050d2b] font-semibold'
 
   function clearAllFilters() {
@@ -165,6 +167,7 @@ export default function Entreprises() {
     setSecteurFilter([])
     setAmFilter('all')
     setSansContactActiveFilter(false)
+    setStubFilter(false)
     setActiveEntrepriseIds(null)
     setSearch('')
     setPage(0)
@@ -190,7 +193,7 @@ export default function Entreprises() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applyFilters = useCallback((query: any) => {
-    let q = query
+    let q = query.eq('is_stub', userIsAdmin && stubFilter)
     if (tierFilter !== 'all') q = q.eq('tier', tierFilter)
     if (statutFilter !== 'all') q = q.eq('statut_entreprise', statutFilter)
     if (secteurFilter.length > 0) {
@@ -211,7 +214,7 @@ export default function Entreprises() {
       q = q.not('id', 'in', `(${activeEntrepriseIds.join(',')})`)
     }
     return q
-  }, [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, sansContactActiveFilter, activeEntrepriseIds])
+  }, [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, sansContactActiveFilter, activeEntrepriseIds, stubFilter, userIsAdmin])
 
   const rpcParams = () => ({
     p_membre_id: restrictToMembreId!,
@@ -288,11 +291,11 @@ export default function Entreprises() {
       }
       return applyFilters(
         supabase.from('entreprises').select(
-          'id, company_name, company_domain, company_id_linkedin, company_employee_count, company_employee_range, company_location, company_typology, secteur_digi, linkedin_industry, tier, hors_cible, statut_entreprise, icp, scoring_icp, justification, is_subsidiary, is_parent_entity, account_manager_id, parent_company_id, source_acquisition, parent:parent_company_id(id, company_name), account_manager:account_manager_id(id, full_name)'
+          'id, company_name, company_domain, company_id_linkedin, company_employee_count, company_employee_range, company_location, company_typology, secteur_digi, linkedin_industry, tier, hors_cible, statut_entreprise, icp, scoring_icp, justification, is_subsidiary, is_parent_entity, is_stub, account_manager_id, parent_company_id, source_acquisition, parent:parent_company_id(id, company_name), account_manager:account_manager_id(id, full_name)'
         ).order('company_name', { ascending: true })
       ).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     },
-    [page, tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds]
+    [page, tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds, stubFilter]
   )
 
   // Signal d'affaire : liens Google Doc de la page courante (requête complémentaire, hors RPC)
@@ -324,7 +327,7 @@ export default function Entreprises() {
       )
       return { data: [{ count: res.count ?? 0 }], error: res.error }
     },
-    [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds]
+    [tierFilter, statutFilter, secteurFilter, amFilter, debouncedSearch, restrictToMembreId, sansContactActiveFilter, activeEntrepriseIds, stubFilter]
   )
 
   const totalCount = countResult?.[0]?.count ?? 0
@@ -390,6 +393,18 @@ export default function Entreprises() {
             }`}
           >
             Sans contact activé
+          </button>
+        )}
+
+        {userIsAdmin && (
+          <button
+            onClick={() => { setStubFilter(v => !v); setPage(0) }}
+            title="Maisons mères créées uniquement pour rattacher des filiales (données à compléter)"
+            className={`h-8 rounded-lg border px-3 text-sm font-medium transition-colors ${
+              stubFilter ? activeClass : 'border-input text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            À enrichir
           </button>
         )}
 
@@ -512,6 +527,9 @@ export default function Entreprises() {
                           </a>
                         )}
                       </div>
+                      {e.is_stub && (
+                        <p className="text-xs text-amber-500">Maison mère à enrichir</p>
+                      )}
                       {e.parent ? (
                         <p className="text-xs text-muted-foreground truncate">Filiale de {e.parent.company_name}</p>
                       ) : e.is_subsidiary ? (
