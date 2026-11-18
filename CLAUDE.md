@@ -110,6 +110,7 @@ Colonnes principales :
 | `owner` | UUID → `membres_digilityx.id` | Propriétaire de l'entreprise |
 | `account_manager_id` | UUID → `membres_digilityx.id` | AM affecté (peut être auto-assigné) |
 | `is_placeholder` | BOOLEAN | Entreprise temporaire sans données réelles |
+| `is_stub` | BOOLEAN | **Coquille** : maison mère absente du référentiel, créée uniquement pour rattacher ses filiales (`DEFAULT FALSE`). Exclue des stats, listes d'activation, auto-affectation AM et de la liste Entreprises par défaut. Distinct de `is_placeholder` (faux employeurs type « Freelance »). |
 | `is_subsidiary` / `is_parent_entity` | BOOLEAN | Hiérarchie groupe/filiale |
 | `parent_company_id` | UUID → `entreprises.id` | |
 | `company_website_from_linkedin` | TEXT | |
@@ -299,7 +300,7 @@ Trigger `auto_assign_account_manager` — s'exécute sur INSERT/UPDATE de `secte
 
 **Règles :**
 - Ne jamais écraser un `account_manager_id` déjà renseigné
-- Ne pas affecter les lignes `is_placeholder = true`
+- Ne pas affecter les lignes `is_placeholder = true` ni `is_stub = true`
 - Tirage aléatoire parmi le pool du secteur
 
 | Secteur | Typologie | Pool AM |
@@ -685,6 +686,10 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 
 **Filtres disponibles :** Tier, Statut contact, Historique relationnel, Owner, Account Manager. Bouton "Effacer" si filtre actif.
 
+**Qualification en lot (vue scoped uniquement — membre ou admin avec « Mes contacts ») :** colonne de cases à cocher (+ « tout sélectionner » sur la page). Dès qu'au moins un contact est coché, une barre d'action sticky propose de choisir un niveau de relation et de l'appliquer en une fois (`UPDATE contacts_membres_relations … WHERE membre_id = moi AND contact_id IN (…)`). Ne modifie que la relation du membre connecté ; la sélection ne porte que sur la page affichée.
+
+**Colonne Digi cliquable :** le badge ouvre un popover listant les membres Digi en relation avec le contact et leur niveau. Chiffre et liste viennent de la même requête (RPC batch `get_membres_en_relation_for_contacts(p_contact_ids uuid[])`, SECURITY DEFINER) et ne comptent que les membres `actif = true` ET `partager_contacts = true` — donc le chiffre peut différer de `nb_personnes_digi_relation` (cache qui compte tous les membres, utilisé pour le scoring). En vue « mes contacts » le membre connecté est exclu ; si personne d'autre → tiret. Le tiroir contact (admin) applique le même masquage dans la section « Relations Digi » (affichage seul : le score enregistré reste calculé sur toutes les relations). Migration `20261118140000_membres_en_relation_partageurs_batch.sql` à appliquer en base **avant** le déploiement (elle remplace `get_contact_membres_en_relation`).
+
 ---
 
 ## 🏢 Page `/entreprises` — détail
@@ -694,6 +699,10 @@ Sélecteur de membre + filtres (tier, secteur). Affiche les contacts du membre s
 **Colonne Signal :** pastille « Doc » cliquable si `google_doc_url` renseigné, visible par tous les rôles. Le lien s'édite dans le drawer entreprise (admin), section « Signal d'affaire ».
 
 **Logo ⚡ (Zap ambre)** affiché sur les lignes dont `statut_entreprise = 'Devenu client Digileads'`. Remplace l'ancien DigiIcon (qui était basé sur `is_digi_client` / `statut_digi`).
+
+**Hiérarchie groupe/filiale (drawer, section Structure) :** une filiale se crée en choisissant une « Entité mère » (la recherche ne propose que les entreprises `is_parent_entity = true`) ; `is_subsidiary` est posé automatiquement. Une entreprise peut être à la fois entité mère et filiale (hiérarchie à plusieurs niveaux, ex. Groupe Crédit Agricole → Crédit Agricole Consumer Finance → ses filiales) : aucun blocage dans l'app, il faut juste veiller au sens du lien.
+
+**Coquilles (`is_stub`) :** quand la maison mère d'un groupe n'existe pas en base, on crée une ligne minimale (`company_name`, `is_stub = TRUE`, `is_parent_entity = TRUE`, `source_acquisition = 'reference_groupe'`) pour pouvoir y rattacher les filiales. Elles sont masquées de la liste Entreprises (filtre admin **« À enrichir »** pour les retrouver, badge « Maison mère à enrichir ») et exclues de `get_dashboard_stats`, `get_secteur_stats`, `get_activation_entreprise_stats` / `_list` et de l'export. Le sélecteur « Entité mère » du drawer les propose normalement. Règles : ne créer une coquille qu'avec ≥ 2 filiales à rattacher ; quand la vraie entreprise est importée/enrichie, **compléter la coquille** (pas de doublon) puis repasser `is_stub = FALSE`. Détection des mères manquantes : `scripts/detect-missing-parents.sql` (contient aussi les requêtes de contrôle : coquilles sans filiale, coquilles à promouvoir). La migration `20261113120000_add_is_stub_flag.sql` doit être appliquée en base **avant** le déploiement du frontend (la liste filtre sur `is_stub`).
 
 **Fiche entreprise (drawer) :** `statut_entreprise` n'est pas modifiable — positionné automatiquement par trigger. Le tier est calculé automatiquement (Typology + Secteur), mais une **checkbox "Marquer comme hors cible"** permet de forcer le tier à `Hors cible` (passe `hors_cible = true` en base).
 

@@ -56,7 +56,7 @@ interface RelationRow {
   id: string
   membre_id: string
   niveau_de_relation: string | null
-  membres_digilityx: { full_name: string } | null
+  membres_digilityx: { full_name: string; partager_contacts: boolean } | null
 }
 
 interface MembreOption {
@@ -151,7 +151,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
       Promise.all([
         supabase
           .from('contacts_membres_relations')
-          .select('id, membre_id, niveau_de_relation, membres_digilityx(full_name)')
+          .select('id, membre_id, niveau_de_relation, membres_digilityx(full_name, partager_contacts)')
           .eq('contact_id', contact.id)
           .order('niveau_de_relation'),
         supabase
@@ -237,6 +237,10 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
     niveauRelation: bestRelation,
     nbPersonnesDigiRelation: contact.nb_personnes_digi_relation,
   })
+
+  // Affichage : on masque les membres qui ne partagent pas leurs contacts.
+  // Le calcul du score (bestRelation / nb_personnes_digi_relation) reste basé sur TOUTES les relations.
+  const visibleRelations = relations.filter(r => r.membres_digilityx?.partager_contacts !== false)
 
   const hasRelationChanges = Object.keys(relationChanges).length > 0
   const hasFieldChanges =
@@ -511,7 +515,7 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
             className="flex items-center justify-between w-full py-1"
           >
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Relations Digi ({relations.length})
+              Relations Digi ({visibleRelations.length})
             </h3>
             <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${relationsOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -521,11 +525,11 @@ export function ContactDrawer({ contact, onClose, onSaved, isAdmin: adminMode = 
                 <div className="flex justify-center py-4">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
-              ) : relations.length === 0 ? (
+              ) : visibleRelations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucune relation Digi.</p>
               ) : (
                 <div className="space-y-2">
-                  {relations.map(r => {
+                  {visibleRelations.map(r => {
                     const currentLevel = relationChanges[r.id] ?? r.niveau_de_relation ?? 'Non renseigné'
                     const isOwner = r.membre_id === ownerMembreId
                     return (

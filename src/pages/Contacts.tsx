@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Users, Search, ChevronLeft, ChevronRight, X, Building2, FilterX, ArrowUp, ArrowDown, ExternalLink, Info, AlertCircle } from 'lucide-react'
+import { Users, Search, Check, ChevronLeft, ChevronRight, X, Building2, FilterX, ArrowUp, ArrowDown, ExternalLink, Info, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
@@ -19,6 +19,8 @@ import type { Entreprise } from '@/lib/types'
 import { scoreContact } from '@/lib/scoring/score-contact'
 import { useAuth, isAdmin } from '@/lib/auth'
 import { NIVEAU_RELATION_DESCRIPTIONS, type Hierarchie, type Persona, type NiveauRelation } from '@/lib/types'
+
+const NIVEAUX_RELATION_ORDER: NiveauRelation[] = ['Non renseigné','Ami','Cercle familial','Ancien collègue','Alumni','Partenaire business','Connaissance','Inconnu']
 
 const STATUT_CONTACT_CLASS: Record<string, string> = {
   'Sélectionné':      'bg-red-800 text-white',
@@ -113,9 +115,44 @@ function liveScore(c: ContactRow): number {
   }).total
 }
 
-function RelationCount({ count }: { count: number }) {
-  if (count === 0) return <span className="text-xs text-muted-foreground">—</span>
-  return <Badge className="bg-[#050d2b] text-white border-transparent">{count}</Badge>
+interface MembreEnRelation { contact_id: string; membre_id: string; full_name: string; niveau_de_relation: string }
+
+function RelationCount({ membres, loading }: { membres: MembreEnRelation[]; loading: boolean }) {
+  const [open, setOpen] = useState(false)
+
+  if (loading) return <span className="text-xs text-muted-foreground">…</span>
+  if (membres.length === 0) return <span className="text-xs text-muted-foreground">—</span>
+  return (
+    <div className="relative inline-block" onClick={e => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        title="Voir les membres Digi en relation avec ce contact"
+        aria-expanded={open}
+        className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Badge className="bg-[#050d2b] text-white border-transparent hover:opacity-80">{membres.length}</Badge>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-1/2 translate-x-1/2 top-full z-40 mt-1 w-64 rounded-lg border border-border bg-card p-2 text-left shadow-lg">
+            <p className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              En relation avec
+            </p>
+            <ul className="space-y-0.5">
+              {membres.map(m => (
+                <li key={m.membre_id} className="flex items-center justify-between gap-2 px-1 py-0.5 text-sm">
+                  <span className="truncate">{m.full_name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{m.niveau_de_relation}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function Contacts() {
@@ -144,6 +181,10 @@ export default function Contacts() {
   const [selectedEntreprise, setSelectedEntreprise] = useState<Entreprise | null>(null)
   const [relationOverrides, setRelationOverrides] = useState<Record<string, string>>({})
   const [onlyMine, setOnlyMine] = useState(false)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const [bulkLevel, setBulkLevel] = useState<NiveauRelation | ''>('')
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
   const [historiqueFilter, setHistoriqueFilter] = useState<string>('all')
   const debouncedSearch = useDebouncedValue(search, 300)
 
@@ -415,6 +456,69 @@ export default function Contacts() {
     },
   })
 
+  // Membres Digi en relation (actifs + partageant leurs contacts) — une requête pour toute la page.
+  // Vue « mes contacts » : le membre connecté est exclu (il est toujours dans la liste).
+  const { data: membresRelation, isLoading: membresRelationLoading } = useQuery({
+    queryKey: ['contacts-membres-relation', docIdsKey],
+    enabled: allContacts.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_membres_en_relation_for_contacts', { p_contact_ids: allContacts.map(c => c.id) })
+      if (error) throw error
+      const map = new Map<string, MembreEnRelation[]>()
+      for (const r of (data ?? []) as MembreEnRelation[]) {
+        if (restrictToMembreId && r.membre_id === restrictToMembreId) continue
+        const list = map.get(r.contact_id) ?? []
+        list.push(r)
+        map.set(r.contact_id, list)
+      }
+      return map
+    },
+  })
+
+  const visibleIds = allContacts.map(c => c.id)
+  const checkedVisible = visibleIds.filter(id => checkedIds.has(id))
+  const allChecked = visibleIds.length > 0 && checkedVisible.length === visibleIds.length
+
+  function toggleChecked(id: string) {
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAllChecked() {
+    setCheckedIds(allChecked ? new Set() : new Set(visibleIds))
+  }
+
+  async function applyBulkRelation() {
+    if (!bulkLevel || !restrictToMembreId || checkedVisible.length === 0) return
+    const ids = checkedVisible
+    const level = bulkLevel
+    setBulkSaving(true)
+    setBulkError(null)
+    const { error } = await supabase
+      .from('contacts_membres_relations')
+      .update({ niveau_de_relation: level })
+      .eq('membre_id', restrictToMembreId)
+      .in('contact_id', ids)
+    setBulkSaving(false)
+    if (error) {
+      console.error('bulk niveau_de_relation update failed', error)
+      setBulkError('La mise à jour a échoué, réessayez.')
+      return
+    }
+    setRelationOverrides(prev => {
+      const next = { ...prev }
+      for (const id of ids) next[id] = level
+      return next
+    })
+    setCheckedIds(new Set())
+    setBulkLevel('')
+    queryClient.invalidateQueries({ queryKey: ['contacts'] })
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -607,6 +711,7 @@ export default function Contacts() {
           <Table>
             <TableHeader>
               <TableRow>
+                {scoped && <TableHead className="w-8" />}
                 <TableHead>Contact</TableHead>
                 <TableHead>Entreprise</TableHead>
                 <TableHead>Statut</TableHead>
@@ -619,7 +724,7 @@ export default function Contacts() {
             <TableBody>
               {Array.from({ length: 10 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: scoped ? 8 : 7 }).map((_, j) => (
+                  {Array.from({ length: scoped ? 9 : 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-muted rounded animate-pulse" />
                     </TableCell>
@@ -639,10 +744,57 @@ export default function Contacts() {
         </div>
       ) : (
         <>
+          {scoped && checkedVisible.length > 0 && (
+            <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-lg border border-[#050d2b]/30 bg-card px-3 py-2 shadow-md">
+              <span className="text-sm font-medium">
+                {checkedVisible.length} contact{checkedVisible.length > 1 ? 's' : ''} sélectionné{checkedVisible.length > 1 ? 's' : ''}
+              </span>
+              <Select value={bulkLevel} onValueChange={(v) => setBulkLevel(v as NiveauRelation)}>
+                <SelectTrigger size="sm" className="min-w-[200px] text-xs">
+                  <SelectValue>{bulkLevel || 'Choisir une relation…'}</SelectValue>
+                </SelectTrigger>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  collisionAvoidance={{ side: 'none' }}
+                  className="min-w-[320px]"
+                >
+                  {NIVEAUX_RELATION_ORDER.map(level => (
+                    <SelectItem key={level} value={level} className="group items-start py-1.5">
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-sm leading-tight">{level}</span>
+                        <span className="hidden group-data-[highlighted]:block text-[11px] italic text-muted-foreground leading-snug whitespace-normal max-w-[300px]">
+                          {NIVEAU_RELATION_DESCRIPTIONS[level]}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" disabled={!bulkLevel || bulkSaving} onClick={applyBulkRelation}>
+                <Check className="h-3.5 w-3.5 mr-1" />
+                {bulkSaving ? 'Application…' : 'Appliquer'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setCheckedIds(new Set())} disabled={bulkSaving}>
+                Désélectionner
+              </Button>
+              {bulkError && <span className="text-xs text-destructive">{bulkError}</span>}
+            </div>
+          )}
           <div className="rounded-lg border border-border bg-card shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
+                  {scoped && (
+                    <TableHead className="w-8">
+                      <input
+                        type="checkbox"
+                        checked={allChecked}
+                        onChange={toggleAllChecked}
+                        aria-label="Tout sélectionner sur la page"
+                        className="h-4 w-4 cursor-pointer accent-[#050d2b]"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Contact</TableHead>
                   <TableHead>Entreprise</TableHead>
                   <TableHead>Statut</TableHead>
@@ -667,7 +819,18 @@ export default function Contacts() {
                   const companyCount = c.entreprise_id ? (entrepriseContactCounts.get(c.entreprise_id) ?? 0) : 0;
                   const canOpen = userIsAdmin
                   return (
-                    <TableRow key={c.id} className={canOpen ? 'cursor-pointer' : ''} onClick={() => canOpen && setSelected(c)}>
+                    <TableRow key={c.id} className={canOpen ? 'cursor-pointer' : ''} onClick={() => canOpen && setSelected(c)} data-state={checkedIds.has(c.id) ? 'selected' : undefined}>
+                      {scoped && (
+                        <TableCell onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={checkedIds.has(c.id)}
+                            onChange={() => toggleChecked(c.id)}
+                            aria-label={`Sélectionner ${c.first_name} ${c.last_name}`}
+                            className="h-4 w-4 cursor-pointer accent-[#050d2b]"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <p className="font-medium text-sm">
@@ -773,7 +936,7 @@ export default function Contacts() {
                             collisionAvoidance={{ side: 'none' }}
                             className="min-w-[320px]"
                           >
-                            {(['Non renseigné','Ami','Cercle familial','Ancien collègue','Alumni','Partenaire business','Connaissance','Inconnu'] as NiveauRelation[]).map(level => (
+                            {NIVEAUX_RELATION_ORDER.map(level => (
                               <SelectItem
                                 key={level}
                                 value={level}
@@ -793,7 +956,7 @@ export default function Contacts() {
                       )
                       })()}
                       <TableCell className="text-center">
-                        <RelationCount count={c.nb_personnes_digi_relation} />
+                        <RelationCount membres={membresRelation?.get(c.id) ?? []} loading={membresRelationLoading} />
                       </TableCell>
                       <TableCell className="text-center">
                         <ScoreBar score={liveScore(c)} />
